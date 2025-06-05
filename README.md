@@ -44,7 +44,7 @@
 1. **Clone the Repository**:
    ```bash
    git clone https://github.com/PytorMuhammad/multilingual-ai-voice-tutor-to-learn-English.git
-   cd multilingual-ai-voice-tutor
+   cd multilingual-ai-voice-tutor-to-learn-English
    ```
 
 2. **Install Dependencies**:
