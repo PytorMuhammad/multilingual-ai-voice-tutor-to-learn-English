@@ -43,7 +43,7 @@
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-repo/multilingual-ai-voice-tutor.git
+   git clone https://github.com/PytorMuhammad/multilingual-ai-voice-tutor-to-learn-English.git
    cd multilingual-ai-voice-tutor
    ```
 
@@ -62,7 +62,7 @@
 4. **Run the Application**:
    Launch the app with:
    ```bash
-   streamlit run app.py
+   python -u app.py
    ```
    Access it at `http://localhost:8501`.
 
