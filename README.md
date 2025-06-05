@@ -1,109 +1,105 @@
+![Multilingual AI Voice Tutor Banner](https://img.shields.io/badge/Multilingual%20AI%20Voice%20Tutor-%F0%9F%8E%99%EF%B8%8F%20%F0%9F%8C%90%20%F0%9F%A4%96-blueviolet?style=for-the-badge&logo=python)
 
-🎯 Multilingual AI Voice Tutor 🎯
-✨ Welcome to the Multilingual AI Voice Tutor! This cutting-edge application is your personal language coach, designed to help Urdu speakers master English with ease. Leveraging the power of AI, it offers an immersive, accent-free learning experience with support for multiple Text-to-Speech (TTS) providers, including ElevenLabs, OpenAI, and Azure. Whether you're practicing pronunciation or learning new vocabulary, this tutor has got you covered! 🚀
+# 🎯 **Multilingual AI Voice Tutor** 🎯
 
-🎉 Key Features 🎉
+**✨ Welcome to the Multilingual AI Voice Tutor!** This cutting-edge application is your personal language coach, designed to help Urdu speakers master English with ease. Leveraging the power of AI, it offers an immersive, accent-free learning experience with support for multiple Text-to-Speech (TTS) providers, including **ElevenLabs**, **OpenAI**, and **Azure**. Whether you're practicing pronunciation or learning new vocabulary, this tutor has got you covered! 🚀
 
-🎤 Multiple TTS Providers: Choose from ElevenLabs 🔥, OpenAI ⚡, or Azure 🏢 for top-notch speech synthesis.
-🗣️ Speech Recognition: Powered by OpenAI's Whisper for precise Urdu and English transcription.
-🏷️ Intelligent Language Tagging: Responses are neatly tagged with [ur] for Urdu and [en] for English.
-🔊 Audio Processing: Enhances clarity with amplification, noise reduction, and normalization.
-🌐 Interactive Interface: Built with Streamlit for a seamless, web-based experience.
+---
 
+## 🎉 **Key Features** 🎉
 
-🛠️ Technologies Used 🛠️
+- 🎤 **Multiple TTS Providers**: Choose from **ElevenLabs** 🔥, **OpenAI** ⚡, or **Azure** 🏢 for top-notch speech synthesis.
+- 🗣️ **Speech Recognition**: Powered by **OpenAI's Whisper** for precise Urdu and English transcription.
+- 🏷️ **Intelligent Language Tagging**: Responses are neatly tagged with `[ur]` for Urdu and `[en]` for English.
+- 🔊 **Audio Processing**: Enhances clarity with amplification, noise reduction, and normalization.
+- 🌐 **Interactive Interface**: Built with **Streamlit** for a seamless, web-based experience.
 
-🐍 Python 3.11
-🌟 Streamlit for the web interface
-🎙️ Whisper for speech recognition
-🤖 OpenAI API for NLP and TTS
-🔊 ElevenLabs API for TTS
-☁️ Azure Cognitive Services for TTS
-🎧 Audio Processing Libraries: librosa, pydub, noisereduce, scipy, sounddevice, soundfile
+---
 
+## 🛠️ **Technologies Used** 🛠️
 
-📂 Project Structure 📂
+- 🐍 **Python 3.11**
+- 🌟 **Streamlit** for the web interface
+- 🎙️ **Whisper** for speech recognition
+- 🤖 **OpenAI API** for NLP and TTS
+- 🔊 **ElevenLabs API** for TTS
+- ☁️ **Azure Cognitive Services** for TTS
+- 🎧 **Audio Processing Libraries**: librosa, pydub, noisereduce, scipy, sounddevice, soundfile
 
+---
 
+## 📂 **Project Structure** 📂
 
-File
-Description
+| File              | Description                           |
+|-------------------|---------------------------------------|
+| `app.py`          | 🚀 Application entry point, runs Streamlit. |
+| `tutor_app.py`    | 🧠 Core logic, UI, and processing pipelines. |
+| `Dockerfile`      | 🐳 For containerizing the application. |
+| `requirements.txt`| 📦 Lists Python dependencies. |
 
+---
 
+## 🛠️ **Setup and Installation** 🛠️
 
-app.py
-🚀 Application entry point, runs Streamlit.
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/your-repo/multilingual-ai-voice-tutor.git
+   cd multilingual-ai-voice-tutor
+   ```
 
+2. **Install Dependencies**:
+   Ensure **Python 3.11** is installed, then run:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-tutor_app.py
-🧠 Core logic, UI, and processing pipelines.
+3. **Set Up API Keys**:
+   Configure your API keys in the Streamlit sidebar:
+   - 🔑 **OpenAI** (for Whisper, ChatGPT, TTS)
+   - 🔑 **ElevenLabs** (for TTS)
+   - 🔑 **Azure Cognitive Services** (for TTS)
 
+4. **Run the Application**:
+   Launch the app with:
+   ```bash
+   streamlit run app.py
+   ```
+   Access it at `http://localhost:8501`.
 
-Dockerfile
-🐳 For containerizing the application.
+---
 
+## 🎓 **Usage** 🎓
 
-requirements.txt
-📦 Lists Python dependencies.
+### 🎤 **Voice Input**
+1. Select "Voice" input in the sidebar.
+2. Click "🔴 START RECORDING", speak clearly in Urdu or English, then "⏹️ STOP RECORDING".
+3. Download the recording and upload it for processing.
+4. Receive a transcribed response and audio output. 🎧
 
+### 📝 **Text Input**
+1. Select "Text" input in the sidebar.
+2. Enter text with `[ur]` for Urdu and `[en]` for English, or use the demo scenarios.
+3. Click "🚀 Process Text" to generate a response and audio. 📄
 
+### 🔊 **TTS Selection**
+- Choose your preferred TTS provider (**ElevenLabs**, **OpenAI**, **Azure**) in the sidebar and adjust settings for an accent-free experience. 🎵
 
-🛠️ Setup and Installation 🛠️
+---
 
-Clone the Repository:
-git clone https://github.com/your-repo/multilingual-ai-voice-tutor.git
-cd multilingual-ai-voice-tutor
+## ⚠️ **Known Issues** ⚠️
 
+- 🔑 **API Dependency**: Requires valid API keys for full functionality.
+- 🎧 **Audio Variability**: Quality may vary based on input and TTS provider.
+- ⏳ **Processing Latency**: May vary depending on input complexity and provider.
 
-Install Dependencies:Ensure Python 3.11 is installed, then run:
-pip install -r requirements.txt
+---
 
+## 🤝 **Contributing** 🤝
 
-Set Up API Keys:Configure your API keys in the Streamlit sidebar:
-
-🔑 OpenAI (for Whisper, ChatGPT, TTS)
-🔑 ElevenLabs (for TTS)
-🔑 Azure Cognitive Services (for TTS)
-
-
-Run the Application:Launch the app with:
-streamlit run app.py
-
-Access it at http://localhost:8501.
-
-
-
-🎓 Usage 🎓
-🎤 Voice Input
-
-Select "Voice" input in the sidebar.
-Click "🔴 START RECORDING", speak clearly in Urdu or English, then "⏹️ STOP RECORDING".
-Download the recording and upload it for processing.
-Receive a transcribed response and audio output. 🎧
-
-📝 Text Input
-
-Select "Text" input in the sidebar.
-Enter text with [ur] for Urdu and [en] for English, or use the demo scenarios.
-Click "🚀 Process Text" to generate a response and audio. 📄
-
-🔊 TTS Selection
-
-Choose your preferred TTS provider (ElevenLabs, OpenAI, Azure) in the sidebar and adjust settings for an accent-free experience. 🎵
-
-
-⚠️ Known Issues ⚠️
-
-🔑 API Dependency: Requires valid API keys for full functionality.
-🎧 Audio Variability: Quality may vary based on input and TTS provider.
-⏳ Processing Latency: May vary depending on input complexity and provider.
-
-
-🤝 Contributing 🤝
 We welcome contributions! To get involved:
+- 🐛 Report issues or suggest features via GitHub Issues.
+- 💡 Submit pull requests with improvements.
 
-🐛 Report issues or suggest features via GitHub Issues.
-💡 Submit pull requests with improvements.
+---
 
-
-📅 Today's date and time: 12:48 PM PKT on Thursday, June 05, 2025
+**📅 Today's date and time: 12:48 PM PKT on Thursday, June 05, 2025**
