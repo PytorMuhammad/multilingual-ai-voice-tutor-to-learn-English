@@ -88,7 +88,7 @@ if 'voice_settings' not in st.session_state:
 
 # TTS Provider Configuration
 if 'tts_provider' not in st.session_state:
-    st.session_state.tts_provider = "elevenlabs_flash"  # Default
+    st.session_state.tts_provider = "elevenlabs"  # Default
 
 if 'provider_voice_configs' not in st.session_state:
     st.session_state.provider_voice_configs = {
@@ -96,17 +96,17 @@ if 'provider_voice_configs' not in st.session_state:
             "speakers": {
                 "Rachel": {
                     "voice_id": "21m00Tcm4TlvDq8ikWAM", 
-                    "description": "Calm, professional female - excellent for multilingual",
+                    "description": "Flash v2.5 - Fast, efficient, accent-free",
                     "model": "eleven_flash_v2_5"
                 },
                 "Adam": {
                     "voice_id": "pNInz6obpgDQGcFmaJgB",
-                    "description": "Deep, authoritative male - great accent control", 
+                    "description": "Flash v2.5 - Deep male, accent control", 
                     "model": "eleven_flash_v2_5"
                 },
                 "Bella": {
                     "voice_id": "EXAVITQu4vr4xnSDxMaL",
-                    "description": "Young, energetic female - clear pronunciation",
+                    "description": "Flash v2.5 - Young, clear pronunciation",
                     "model": "eleven_flash_v2_5"
                 }
             },
@@ -114,30 +114,32 @@ if 'provider_voice_configs' not in st.session_state:
         },
         "elevenlabs_multilingual": {
             "speakers": {
-                "Rachel": {
+                "Rachel_Multi": {
                     "voice_id": "21m00Tcm4TlvDq8ikWAM", 
-                    "description": "Calm, professional female - multilingual optimized",
+                    "description": "Multilingual v2 - Advanced accent elimination",
                     "model": "eleven_multilingual_v2"
                 },
-                "Adam": {
+                "Adam_Multi": {
                     "voice_id": "pNInz6obpgDQGcFmaJgB",
-                    "description": "Deep, authoritative male - multilingual optimized", 
+                    "description": "Multilingual v2 - Deep male, native-like", 
                     "model": "eleven_multilingual_v2"
                 },
-                "Antoni": {
-                    "voice_id": "ErXwobaYiN019PkySvjV",
-                    "description": "Warm, well-educated male - accent-free switching",
+                "Bella_Multi": {
+                    "voice_id": "EXAVITQu4vr4xnSDxMaL",
+                    "description": "Multilingual v2 - Crystal clear switching",
                     "model": "eleven_multilingual_v2"
                 }
             },
-            "selected": "Rachel"
+            "selected": "Rachel_Multi"
         }
     }
+# Initialize selected speakers per provider
 if 'selected_speakers' not in st.session_state:
     st.session_state.selected_speakers = {
         "elevenlabs_flash": "Rachel",
-        "elevenlabs_multilingual": "Rachel"
+        "elevenlabs_multilingual": "Rachel_Multi"
     }
+
 # Dynamic voice ID based on selected provider and speaker
 def get_current_voice_id():
     provider = st.session_state.tts_provider
@@ -179,8 +181,9 @@ if 'performance_metrics' not in st.session_state:
         "llm_latency": [],
         "tts_latency": [],
         "total_latency": [],
-        "api_calls": {"whisper": 0, "openai": 0, "elevenlabs": 0}
+        "api_calls": {"whisper": 0, "openai": 0, "elevenlabs_flash": 0, "elevenlabs_multilingual": 0}
     }
+
 
 # Conversation history
 if 'conversation_history' not in st.session_state:
@@ -705,42 +708,41 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         response_language = st.session_state.response_language
         
         if response_language == "both":
-            system_content = """🎯 WORD-LEVEL TAGGING ENFORCER
+            system_content = """🎓 WORD-LEVEL LANGUAGE TAGGING EXPERT
 
-            ⚠️ ABSOLUTE RULE: EVERY ENGLISH WORD GETS [en] TAG, EVERY URDU GETS [ur]
+            🚨 ABSOLUTE REQUIREMENT: PERFECT WORD-LEVEL TAGGING
 
-            ❌ NEVER DO THIS:
-            "[ur] English mein water kehte hain"
-            "[en] We call it paani in Urdu"
+            You are an English tutor for Urdu speakers. CRITICAL: Every single word must be tagged with its language.
 
-            ✅ ALWAYS DO THIS:
-            "[ur] English mein [en] water [ur] kehte hain"
-            "[ur] Paani ko [en] English [ur] mein [en] water [ur] kehte hain"
+            ❌ NEVER DO THIS (BLOCK TAGGING):
+            "[ur] Complete Urdu sentence [en] Complete English sentence"
 
-            🔥 MANDATORY PATTERNS:
+            ✅ ALWAYS DO THIS (WORD-LEVEL TAGGING):
+            "[ur] Urdu ky alFaz [en] English words [ur] mein achy se mix krny hein [en] Understand"
+
+            🔥 MANDATORY EXAMPLES:
 
             VOCABULARY TEACHING:
-            "[ur] {URDU_WORD} ko [en] English [ur] mein [en] {ENGLISH_WORD} [ur] kehte hain"
-
-            LISTS:
-            "[ur] 1. [en] House [ur] - ghar
-            [ur] 2. [en] Car [ur] - gaari  
-            [ur] 3. [en] Book [ur] - kitab"
-
-            GRAMMAR:
-            "[ur] Past tense banane ke liye [en] verb [ur] ke saath [en] -ed [ur] lagaate hain"
-
-            🚨 ENFORCEMENT RULES:
-            1. NO English word without [en] tag
-            2. NO Urdu word without [ur] tag  
-            3. Switch tags for EVERY word
-            4. Maximum 3 words per tag
-
-            EXAMPLE PERFECT RESPONSE:
             User: "Water English mein kya kehte hain?"
-            You: "[ur] Paani ko [en] English [ur] mein [en] water [ur] kehte hain. [ur] Aur [en] basic words [ur]: [en] house [ur] (ghar), [en] book [ur] (kitab)."
+            You: "[ur] Paani [ur] ko [ur] English [ur] mein [en] Water [ur] kehte [ur] hain"
 
-            BEGIN WITH PERFECT WORD-LEVEL TAGGING."""
+            WORD LISTS:
+            "[ur] Basic [ur] words:
+            [ur] 1. [en] House [ur] - [ur] ghar
+            [ur] 2. [en] Car [ur] - [ur] gaari  
+            [ur] 3. [en] Book [ur] - [ur] kitab"
+
+            GRAMMAR EXPLANATION:
+            "[ur] Past [ur] tense [ur] banane [ur] ke [ur] liye [en] verb [ur] ke [ur] saath [en] -ed [ur] lagaate [ur] hain"
+
+            🎯 RULES:
+            1. Tag EVERY word individually
+            2. Switch languages within sentences, not between sentences
+            3. Use [ur] for all Urdu words
+            4. Use [en] for all English words
+            5. NEVER have more than 3 words in same tag without switching
+
+            This is CRITICAL for accent-free speech generation. Perfect tagging = No accent bleeding."""
         elif response_language == "ur":
             system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
         elif response_language == "en":
@@ -938,11 +940,16 @@ def generate_speech(text, language_code=None, voice_id=None):
         logger.error("ElevenLabs API key not provided")
         return None, 0
     
-    # Get selected speaker configuration
-    selected_speaker_name = st.session_state.selected_speakers.get(provider, "Rachel")
+    # Get selected speaker configuration based on current provider
     provider = st.session_state.tts_provider
-    selected_speaker_name = st.session_state.selected_speakers.get(provider, "Rachel")
-    speaker_config = st.session_state.provider_voice_configs[provider]["speakers"][selected_speaker_name]
+    if provider in st.session_state.selected_speakers:
+        selected_speaker_name = st.session_state.selected_speakers.get(provider, "Rachel")
+        speaker_config = st.session_state.provider_voice_configs[provider]["speakers"][selected_speaker_name]
+    else:
+        # Fallback to first available provider
+        provider = list(st.session_state.provider_voice_configs.keys())[0]
+        selected_speaker_name = list(st.session_state.provider_voice_configs[provider]["speakers"].keys())[0]
+        speaker_config = st.session_state.provider_voice_configs[provider]["speakers"][selected_speaker_name]
     selected_voice_id = voice_id or speaker_config["voice_id"]
     
     logger.info(f"Using ElevenLabs speaker: {selected_speaker_name} ({selected_voice_id})")
@@ -999,51 +1006,6 @@ def generate_speech(text, language_code=None, voice_id=None):
         logger.error(f"ElevenLabs TTS error: {str(e)}")
         return None, time.time() - start_time
 
-async def generate_speech_openai(text, language_code=None):
-    """Generate speech using OpenAI TTS with selected speaker"""
-    api_key = st.session_state.openai_api_key
-    if not api_key:
-        return None, 0
-    
-    # Get selected speaker configuration
-    selected_speaker_name = st.session_state.selected_speakers.get("openai", "Nova")
-    speaker_config = st.session_state.provider_voice_configs["openai"]["speakers"][selected_speaker_name]
-    
-    # Clean text for OpenAI TTS (remove language markers)
-    clean_text = re.sub(r'\[ur\]|\[en\]', '', text).strip()
-    
-    start_time = time.time()
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.openai.com/v1/audio/speech",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": speaker_config["model"],
-                    "input": clean_text,
-                    "voice": speaker_config["voice_id"],
-                    "response_format": "mp3",
-                    "speed": 0.9
-                },
-                timeout=20.0
-            )
-            
-            generation_time = time.time() - start_time
-            
-            if response.status_code == 200:
-                logger.info(f"✅ OpenAI TTS ({selected_speaker_name}) generated in {generation_time:.2f}s")
-                return BytesIO(response.content), generation_time
-            else:
-                logger.error(f"OpenAI TTS error: {response.status_code}")
-                return None, generation_time
-                
-    except Exception as e:
-        logger.error(f"OpenAI TTS error: {str(e)}")
-        return None, time.time() - start_time
 
 async def generate_speech_unified(text, language_code=None):
     """Unified speech generation using selected ElevenLabs model"""
@@ -1053,6 +1015,7 @@ async def generate_speech_unified(text, language_code=None):
         return generate_speech(text, language_code)
     else:
         return generate_speech(text, language_code)  # Fallback
+    
 
 def add_accent_free_markup(text, language_code):
     """Add SSML markup for accent-free pronunciation - Urdu/English"""
@@ -1210,7 +1173,6 @@ async def process_voice_input_pronunciation_enhanced(audio_file):
             return user_input, None, transcription.get("latency", 0), 0, 0
         
         response_text = llm_result["response"]
-        st.session_state.last_llm_response = response_text 
         st.session_state.message_queue.put(f"💬 Generated: {response_text}")
         
         # Step 5: High-Quality Voice Synthesis
@@ -1262,7 +1224,6 @@ async def process_text_input(text):
         return None, llm_result.get("latency", 0), 0
     
     response_text = llm_result["response"]
-    st.session_state.last_llm_response = response_text
     st.session_state.message_queue.put(f"Generated response: {response_text}")
     
     # Step 2: Text-to-Speech with accent isolation
@@ -1332,25 +1293,22 @@ def calculate_average_latency(latency_list, recent_count=5):
     return sum(recent) / len(recent)
 
 def update_status():
-    """Update status display from message queue - FIXED"""
-    if 'status_messages' not in st.session_state:
-        st.session_state.status_messages = []
+    """Update status display from message queue"""
+    if 'status_text' not in st.session_state:
+        st.session_state.status_text = ""
     
-    # Get all new messages
+    messages_found = False
     while True:
         try:
             message = st.session_state.message_queue.get_nowait()
-            st.session_state.status_messages.append(f"{datetime.now().strftime('%H:%M:%S')} - {message}")
-            # Keep only last 10 messages
-            if len(st.session_state.status_messages) > 10:
-                st.session_state.status_messages.pop(0)
+            st.session_state.status_text += message + "\n"
+            messages_found = True
         except queue.Empty:
             break
     
-    # Display messages
-    if st.session_state.status_messages:
-        status_text = "\n".join(st.session_state.status_messages)
-        st.text_area("Processing Log", value=status_text, height=200, key="status_display")
+    if messages_found:
+        with st.session_state.status_area.container():
+            st.text_area("Processing Log", value=st.session_state.status_text, height=200)
 
 def ensure_single_voice_consistency():
     """Ensure all languages use the same voice ID"""
@@ -1498,20 +1456,66 @@ def main():
         
         # TTS Provider Selection
         st.subheader("🎵 TTS Provider")
-
+        
         tts_provider = st.selectbox(
-            "Choose ElevenLabs Model",
+            "Choose TTS Provider", 
             options=["elevenlabs_flash", "elevenlabs_multilingual"],
             format_func=lambda x: {
-                "elevenlabs_flash": "ElevenLabs Flash v2.5 (Fastest)",
-                "elevenlabs_multilingual": "ElevenLabs Multilingual v2 (Best Quality)"
+                "elevenlabs_flash": "ElevenLabs Flash v2.5 (Fast, 1-2s latency)",
+                "elevenlabs_multilingual": "ElevenLabs Multilingual v2 (Accent-free, 2-3s latency)"
             }[x],
-            index=["elevenlabs_flash", "elevenlabs_multilingual"].index(st.session_state.tts_provider) if st.session_state.tts_provider in ["elevenlabs_flash", "elevenlabs_multilingual"] else 0
+            index=0
         )
-
+        
         if tts_provider != st.session_state.tts_provider:
             st.session_state.tts_provider = tts_provider
             st.success(f"TTS Provider changed to: {tts_provider}")
+        
+        # Provider-specific configuration
+        if tts_provider == "elevenlabs_flash":
+            st.info("✅ ElevenLabs Flash v2.5 - Optimized for speed (1-2s latency)")
+        elif tts_provider == "elevenlabs_multilingual":
+            st.info("✅ ElevenLabs Multilingual v2 - Optimized for accent-free switching (2-3s latency)")
+            
+        # Speaker Selection per Provider
+        if tts_provider in st.session_state.provider_voice_configs:
+            st.write(f"**{tts_provider.title()} Speakers:**")
+            
+            speakers = st.session_state.provider_voice_configs[tts_provider]["speakers"]
+            current_speaker = st.session_state.selected_speakers.get(tts_provider, list(speakers.keys())[0])
+            
+            # Create speaker options with descriptions
+            speaker_options = {}
+            for name, config in speakers.items():
+                description = config.get("description", "Professional voice")
+                speaker_options[f"{name} - {description}"] = name
+            
+            selected_speaker_display = st.selectbox(
+                f"Choose {tts_provider.title()} Speaker",
+                options=list(speaker_options.keys()),
+                index=list(speaker_options.values()).index(current_speaker) if current_speaker in speaker_options.values() else 0,
+                key=f"{tts_provider}_speaker_select"
+            )
+            
+            selected_speaker = speaker_options[selected_speaker_display]
+            
+            if selected_speaker != st.session_state.selected_speakers.get(tts_provider):
+                st.session_state.selected_speakers[tts_provider] = selected_speaker
+                
+                # Update ElevenLabs voice ID if ElevenLabs is selected
+                if tts_provider == "elevenlabs":
+                    new_voice_id = speakers[selected_speaker]["voice_id"]
+                    st.session_state.elevenlabs_voice_id = new_voice_id
+                
+                st.success(f"✅ Speaker changed to: {selected_speaker}")
+                
+            # Show speaker details
+            speaker_config = speakers[selected_speaker]
+            st.info(f"""
+            **{selected_speaker}**: {speaker_config['description']}
+            - Voice ID: {speaker_config['voice_id'][:12]}...
+            - Model: {speaker_config['model']}
+            """)
 
         # Voice Testing Section
         st.write("**🎵 Test Current Speaker:**")
@@ -1525,28 +1529,19 @@ def main():
             if test_text.strip():
                 with st.spinner(f"Testing {tts_provider} speaker..."):
                     try:
-                        # Initialize variables
-                        audio_data = None
-                        latency = 0
-                        
-                        # Generate test audio - FIXED for new provider names
+                        # Generate test audio
                         if tts_provider in ["elevenlabs_flash", "elevenlabs_multilingual"]:
                             audio_data, latency = generate_speech(test_text)
-                        elif tts_provider == "openai":
-                            audio_data, latency = asyncio.run(generate_speech_openai(test_text))
                         else:
-                            # Fallback to ElevenLabs
-                            audio_data, latency = generate_speech(test_text)
-                                
+                            audio_data, latency = generate_speech(test_text)  # Fallback                      
                         if audio_data:
                             st.audio(audio_data.read(), format="audio/mp3")
                             st.success(f"✅ Test completed in {latency:.2f}s")
                         else:
-                            st.error("❌ Test failed - check API keys or audio generation")
+                            st.error("❌ Test failed - check API keys")
                             
                     except Exception as e:
                         st.error(f"Test error: {str(e)}")
-                        logger.error(f"Test speaker error: {str(e)}")
         
         # Performance metrics
         st.header("Performance")
@@ -1565,7 +1560,8 @@ def main():
         st.subheader("API Usage")
         st.text(f"Whisper API calls: {st.session_state.performance_metrics['api_calls']['whisper']}")
         st.text(f"OpenAI API calls: {st.session_state.performance_metrics['api_calls']['openai']}")
-        st.text(f"ElevenLabs API calls: {st.session_state.performance_metrics['api_calls']['elevenlabs']}")
+        st.text(f"ElevenLabs Flash calls: {st.session_state.performance_metrics['api_calls']['elevenlabs_flash']}")
+        st.text(f"ElevenLabs Multilingual calls: {st.session_state.performance_metrics['api_calls']['elevenlabs_multilingual']}")
         
         # Accent improvement explanation
         st.header("Accent Improvement")
@@ -1741,14 +1737,6 @@ def main():
                     height=150,
                     disabled=True
                 )
-        elif 'last_llm_response' in st.session_state and st.session_state.last_llm_response:
-            st.subheader("AI Tutor Response")
-            st.text_area(
-                "Response text", 
-                value=st.session_state.last_llm_response,
-                height=150,
-                disabled=True
-            )
         
         # Generated audio
         if 'last_audio_output' in st.session_state and st.session_state.last_audio_output:
