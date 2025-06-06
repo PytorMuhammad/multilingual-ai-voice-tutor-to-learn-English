@@ -20,8 +20,8 @@ import numpy as np
 from pydub import AudioSegment
 from pydub.silence import split_on_silence
 from io import BytesIO
-import noisereduce as nr
-
+import noisereduce as nr  # For noise reduction
+import openai
 # Web interface and async handling
 import streamlit as st
 import httpx
@@ -38,10 +38,10 @@ import whisper
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("multilingual_voice_tutor")
+logger = logging.getLogger("urdu_english_voice_tutor")
 
 # ----------------------------------------------------------------------------------
-# CONFIGURATION SECTION - ENHANCED WITH MULTIPLE TTS PROVIDERS
+# CONFIGURATION SECTION - UPDATED FOR URDU-ENGLISH
 # ----------------------------------------------------------------------------------
 
 # Secrets and API keys
@@ -49,88 +49,189 @@ if 'api_keys_initialized' not in st.session_state:
     st.session_state.api_keys_initialized = False
     st.session_state.elevenlabs_api_key = os.environ.get("ELEVENLABS_API_KEY", "")
     st.session_state.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
-    st.session_state.azure_speech_key = os.environ.get("AZURE_SPEECH_KEY", "")
-    st.session_state.azure_speech_region = os.environ.get("AZURE_SPEECH_REGION", "")
+    st.session_state.coqui_api_key = os.environ.get("COQUI_API_KEY", "")
 
 # API endpoints
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
 OPENAI_API_URL = "https://api.openai.com/v1"
-
-# TTS Provider Selection
-if 'tts_provider' not in st.session_state:
-    st.session_state.tts_provider = "elevenlabs"  # Default provider
-
-# TTS Provider Configurations
-if 'tts_configs' not in st.session_state:
-    st.session_state.tts_configs = {
-        "elevenlabs": {
-            "voice_id": "21m00Tcm4TlvDq8ikWAM",
-            "model": "eleven_flash_v2_5",
-            "stability": 0.98,
-            "similarity_boost": 0.99,
-            "style": 0.90
-        },
-        "openai": {
-            "model": "tts-1-hd",
-            "voice": "alloy",  # Options: alloy, echo, fable, onyx, nova, shimmer
-            "speed": 1.0
-        },
-        "azure": {
-            "ur_voice": "ur-PK-AsadNeural",  # Urdu voice
-            "en_voice": "en-US-JennyNeural", # English voice
-            "speech_rate": "0.9",
-            "pitch": "+2Hz"
-        }
-    }
+COQUI_API_URL = "https://app.coqui.ai/api/v1"
 
 if 'language_voices' not in st.session_state:
-    single_voice_id = "21m00Tcm4TlvDq8ikWAM"
+    # USE SAME VOICE FOR ALL LANGUAGES - No accent bleeding
+    single_voice_id = "21m00Tcm4TlvDq8ikWAM"  # Use same voice for everything
     st.session_state.language_voices = {
-        "ur": single_voice_id,
-        "en": single_voice_id,
+        "ur": single_voice_id,  # SAME voice for Urdu
+        "en": single_voice_id,  # SAME voice for English
         "default": single_voice_id
     }
 
-# OPTIMIZED voice settings for accent-free output
+# OPTIMIZED voice settings for Urdu-English
 if 'voice_settings' not in st.session_state:
     st.session_state.voice_settings = {
         "ur": {  # Urdu-optimized settings
-            "stability": 0.98,
-            "similarity_boost": 0.99,
-            "style": 0.90,
-            "use_speaker_boost": True
+            "stability": 0.95,        # MAXIMUM stability for consistent Urdu
+            "similarity_boost": 0.98, # MAXIMUM similarity for native Urdu sound
+            "style": 0.85,           # High style for natural Urdu expression
+            "use_speaker_boost": True # Enable speaker boost for clarity
         },
         "en": {  # English-optimized settings  
-            "stability": 0.96,
-            "similarity_boost": 0.97,
-            "style": 0.88,
-            "use_speaker_boost": True
+            "stability": 0.92,        # VERY HIGH stability for consistent English
+            "similarity_boost": 0.95, # VERY HIGH similarity for native English sound
+            "style": 0.80,           # High style for natural English expression
+            "use_speaker_boost": True # Enable speaker boost for clarity
         },
         "default": {
-            "stability": 0.95,
-            "similarity_boost": 0.95,
-            "style": 0.85,
+            "stability": 0.90,
+            "similarity_boost": 0.90,
+            "style": 0.75,
             "use_speaker_boost": True
         }
     }
 
+# TTS Provider Configuration - UPDATED WITH COQUI
+if 'tts_provider' not in st.session_state:
+    st.session_state.tts_provider = "elevenlabs"  # Default
+
+if 'provider_voice_configs' not in st.session_state:
+    st.session_state.provider_voice_configs = {
+        "elevenlabs": {
+            "speakers": {
+                "Rachel": {
+                    "voice_id": "21m00Tcm4TlvDq8ikWAM", 
+                    "description": "Calm, professional female - excellent for multilingual",
+                    "model": "eleven_flash_v2_5"
+                },
+                "Adam": {
+                    "voice_id": "pNInz6obpgDQGcFmaJgB",
+                    "description": "Deep, authoritative male - great accent control", 
+                    "model": "eleven_flash_v2_5"
+                },
+                "Bella": {
+                    "voice_id": "EXAVITQu4vr4xnSDxMaL",
+                    "description": "Young, energetic female - clear pronunciation",
+                    "model": "eleven_flash_v2_5"
+                },
+                "Josh": {
+                    "voice_id": "TxGEqnHWrfWFTfGW9XjX", 
+                    "description": "Friendly male - consistent across languages",
+                    "model": "eleven_flash_v2_5"
+                },
+                "Antoni": {
+                    "voice_id": "ErXwobaYiN019PkySvjV",
+                    "description": "Warm, well-educated male - accent-free switching",
+                    "model": "eleven_flash_v2_5"
+                },
+                "Elli": {
+                    "voice_id": "MF3mGyEYCl7XYWbV9V6O",
+                    "description": "Emotional, expressive female - natural delivery", 
+                    "model": "eleven_flash_v2_5"
+                }
+            },
+            "selected": "Rachel"
+        },
+        "openai": {
+            "speakers": {
+                "Nova": {
+                    "voice_id": "nova",
+                    "description": "Most versatile - excellent for multilingual content",
+                    "model": "tts-1-hd"
+                },
+                "Alloy": {
+                    "voice_id": "alloy", 
+                    "description": "Balanced, neutral - great accent control",
+                    "model": "tts-1-hd"
+                },
+                "Echo": {
+                    "voice_id": "echo",
+                    "description": "Clear, professional - consistent pronunciation",
+                    "model": "tts-1-hd" 
+                },
+                "Fable": {
+                    "voice_id": "fable",
+                    "description": "Expressive, engaging - natural language switching",
+                    "model": "tts-1-hd"
+                },
+                "Onyx": {
+                    "voice_id": "onyx",
+                    "description": "Deep, authoritative - accent-free delivery",
+                    "model": "tts-1-hd"
+                },
+                "Shimmer": {
+                    "voice_id": "shimmer", 
+                    "description": "Bright, energetic - clear multilingual speech",
+                    "model": "tts-1-hd"
+                }
+            },
+            "selected": "Nova"
+        },
+        "coqui": {
+            "speakers": {
+                "Multilingual_Sarah": {
+                    "voice_id": "multilingual-sarah-v1",
+                    "description": "Professional multilingual voice - Urdu/English optimized",
+                    "model": "xtts-v2",
+                    "languages": ["en", "ur", "hi"]
+                },
+                "Global_Alex": {
+                    "voice_id": "global-alex-v1", 
+                    "description": "Clear male voice - excellent for language learning",
+                    "model": "xtts-v2",
+                    "languages": ["en", "ur"]
+                },
+                "Teacher_Maria": {
+                    "voice_id": "teacher-maria-v1",
+                    "description": "Educational voice - perfect for tutoring",
+                    "model": "xtts-v2",
+                    "languages": ["en", "ur", "es"]
+                },
+                "Native_Asim": {
+                    "voice_id": "native-asim-v1",
+                    "description": "Native-like pronunciation - Urdu specialist", 
+                    "model": "xtts-v2",
+                    "languages": ["ur", "en"]
+                }
+            },
+            "selected": "Multilingual_Sarah"
+        }
+    }
+
+# Initialize selected speakers per provider
+if 'selected_speakers' not in st.session_state:
+    st.session_state.selected_speakers = {
+        "elevenlabs": "Rachel",
+        "openai": "Nova", 
+        "coqui": "Multilingual_Sarah"
+    }
+
+# Dynamic voice ID based on selected provider and speaker
+def get_current_voice_id():
+    provider = st.session_state.tts_provider
+    if provider in st.session_state.provider_voice_configs:
+        selected_speaker = st.session_state.selected_speakers.get(provider, list(st.session_state.provider_voice_configs[provider]["speakers"].keys())[0])
+        return st.session_state.provider_voice_configs[provider]["speakers"][selected_speaker]["voice_id"]
+    return "21m00Tcm4TlvDq8ikWAM"  # Fallback
+
+# Update elevenlabs_voice_id dynamically
+if 'elevenlabs_voice_id' not in st.session_state:
+    st.session_state.elevenlabs_voice_id = get_current_voice_id()
+    
 # Whisper speech recognition config
 if 'whisper_model' not in st.session_state:
     st.session_state.whisper_model = "medium"
     st.session_state.whisper_local_model = None
 
-# Language distribution preference
+# Language distribution preference - UPDATED FOR URDU-ENGLISH
 if 'language_distribution' not in st.session_state:
     st.session_state.language_distribution = {
-        "ur": 60,  # Urdu percentage (explanations)
-        "en": 40   # English percentage (examples/terms)
+        "ur": 50,  # Urdu percentage
+        "en": 50   # English percentage
     }
 
 # Language preference for response
 if 'response_language' not in st.session_state:
     st.session_state.response_language = "both"  # Options: "ur", "en", "both"
 
-# Language codes and settings
+# Language codes and settings - UPDATED FOR URDU-ENGLISH
 SUPPORTED_LANGUAGES = {
     "ur": {"name": "Urdu", "confidence_threshold": 0.65},
     "en": {"name": "English", "confidence_threshold": 0.65}
@@ -143,7 +244,7 @@ if 'performance_metrics' not in st.session_state:
         "llm_latency": [],
         "tts_latency": [],
         "total_latency": [],
-        "api_calls": {"whisper": 0, "openai": 0, "elevenlabs": 0, "azure": 0}
+        "api_calls": {"whisper": 0, "openai": 0, "elevenlabs": 0, "coqui": 0}
     }
 
 # Conversation history
@@ -162,786 +263,20 @@ if 'recorded_audio' not in st.session_state:
 def check_system_dependencies():
     """Check and install system dependencies for audio processing"""
     try:
+        # Check if ffmpeg is available
         import subprocess
         subprocess.run(["ffmpeg", "-version"], check=True, capture_output=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         st.warning("⚠️ Audio processing may be limited. Installing dependencies...")
+        # Railway should handle this via nixpacks
+    
     return True
 
-# ----------------------------------------------------------------------------------
-# TTS PROVIDER FUNCTIONS - ELEVENLABS, OPENAI, AZURE
-# ----------------------------------------------------------------------------------
-
-def get_accent_free_voice_settings(language_code, context=None):
-    """🎯 OPTIMIZED: Accent-free voice settings using advanced ElevenLabs techniques"""
-    
-    base_settings = {
-        "stability": 0.95,
-        "similarity_boost": 0.98,
-        "style": 0.85,
-        "use_speaker_boost": True
-    }
-    
-    if language_code and language_code in st.session_state.voice_settings:
-        voice_settings = st.session_state.voice_settings[language_code].copy()
-        logger.info(f"Using optimized {language_code} settings: {voice_settings}")
-    else:
-        voice_settings = st.session_state.voice_settings["default"]
-    
-    return voice_settings
-
-def create_accent_free_ssml_enhanced(text, language_code):
-    """🎯 ENHANCED: Advanced SSML with pronunciation isolation techniques"""
-    
-    if not language_code:
-        return text
-    
-    clean_text = text.strip()
-    
-    if language_code in ["ur", "hi"]:
-        enhanced_text = f'''<speak>
-            <lang xml:lang="ur-PK">
-                <phoneme alphabet="ipa" ph="">ˈ</phoneme>
-                <prosody rate="0.90" pitch="+2st" volume="+3dB">
-                    {clean_text}
-                </prosody>
-            </lang>
-        </speak>'''
-        
-    elif language_code == "en":
-        enhanced_text = f'''<speak>
-            <lang xml:lang="en-US">
-                <phoneme alphabet="ipa" ph="">ˈ</phoneme>
-                <prosody rate="0.95" pitch="+1st" volume="+2dB">
-                    {clean_text}
-                </prosody>
-            </lang>
-        </speak>'''
-    else:
-        enhanced_text = clean_text
-    
-    return enhanced_text
-
-async def generate_speech_elevenlabs(text, language_code, voice_id):
-    """Generate speech using ElevenLabs with accent-free settings"""
-    
-    api_key = st.session_state.elevenlabs_api_key
-    if not api_key:
-        return None, 0
-    
-    voice_settings = get_accent_free_voice_settings(language_code)
-    enhanced_text = create_accent_free_ssml_enhanced(text, language_code)
-    
-    data = {
-        "text": enhanced_text,
-        "model_id": st.session_state.tts_configs["elevenlabs"]["model"],
-        "voice_settings": voice_settings,
-        "apply_text_normalization": "auto"
-    }
-    
-    headers = {
-        "Accept": "audio/mpeg",
-        "Content-Type": "application/json",
-        "xi-api-key": api_key
-    }
-    
-    start_time = time.time()
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-                json=data,
-                headers=headers,
-                timeout=15.0
-            )
-            
-            generation_time = time.time() - start_time
-            
-            if response.status_code == 200:
-                logger.info(f"✅ ElevenLabs {language_code} generated in {generation_time:.2f}s")
-                return BytesIO(response.content), generation_time
-            else:
-                logger.error(f"ElevenLabs error: {response.status_code}")
-                return None, generation_time
-                
-    except Exception as e:
-        logger.error(f"ElevenLabs TTS error: {str(e)}")
-        return None, time.time() - start_time
-
-async def generate_speech_openai(text, language_code):
-    """Generate speech using OpenAI TTS"""
-    
-    api_key = st.session_state.openai_api_key
-    if not api_key:
-        return None, 0
-    
-    config = st.session_state.tts_configs["openai"]
-    
-    data = {
-        "model": config["model"],
-        "input": text,
-        "voice": config["voice"],
-        "speed": config["speed"]
-    }
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    start_time = time.time()
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.openai.com/v1/audio/speech",
-                json=data,
-                headers=headers,
-                timeout=30.0
-            )
-            
-            generation_time = time.time() - start_time
-            
-            if response.status_code == 200:
-                logger.info(f"✅ OpenAI TTS {language_code} generated in {generation_time:.2f}s")
-                return BytesIO(response.content), generation_time
-            else:
-                logger.error(f"OpenAI TTS error: {response.status_code}")
-                return None, generation_time
-                
-    except Exception as e:
-        logger.error(f"OpenAI TTS error: {str(e)}")
-        return None, time.time() - start_time
-
-async def generate_speech_azure(text, language_code):
-    """Generate speech using Azure Speech Service"""
-    
-    api_key = st.session_state.azure_speech_key
-    region = st.session_state.azure_speech_region
-    
-    if not api_key or not region:
-        return None, 0
-    
-    config = st.session_state.tts_configs["azure"]
-    
-    # Select voice based on language
-    if language_code == "ur":
-        voice_name = config["ur_voice"]
-        lang_code = "ur-PK"
-    else:
-        voice_name = config["en_voice"]
-        lang_code = "en-US"
-    
-    # Create SSML
-    ssml_text = f'''<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="{lang_code}">
-        <voice name="{voice_name}">
-            <prosody rate="{config['speech_rate']}" pitch="{config['pitch']}">
-                {text}
-            </prosody>
-        </voice>
-    </speak>'''
-    
-    headers = {
-        "Ocp-Apim-Subscription-Key": api_key,
-        "Content-Type": "application/ssml+xml",
-        "X-Microsoft-OutputFormat": "audio-16khz-128kbitrate-mono-mp3",
-        "User-Agent": "UrduEnglishTutor"
-    }
-    
-    start_time = time.time()
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1",
-                headers=headers,
-                content=ssml_text,
-                timeout=30.0
-            )
-            
-            generation_time = time.time() - start_time
-            
-            if response.status_code == 200:
-                logger.info(f"✅ Azure Speech {language_code} generated in {generation_time:.2f}s")
-                return BytesIO(response.content), generation_time
-            else:
-                logger.error(f"Azure Speech error: {response.status_code}")
-                return None, generation_time
-                
-    except Exception as e:
-        logger.error(f"Azure Speech error: {str(e)}")
-        return None, time.time() - start_time
-
-async def generate_speech_with_provider(text, language_code):
-    """Generate speech using the selected TTS provider"""
-    
-    provider = st.session_state.tts_provider
-    
-    try:
-        if provider == "elevenlabs":
-            voice_id = st.session_state.elevenlabs_voice_id if hasattr(st.session_state, 'elevenlabs_voice_id') else st.session_state.language_voices["default"]
-            return await generate_speech_elevenlabs(text, language_code, voice_id)
-        
-        elif provider == "openai":
-            return await generate_speech_openai(text, language_code)
-        
-        elif provider == "azure":
-            return await generate_speech_azure(text, language_code)
-        
-        else:
-            logger.error(f"Unknown TTS provider: {provider}")
-            return None, 0
-            
-    except Exception as e:
-        logger.error(f"TTS provider error: {str(e)}")
-        return None, 0
-
-# ----------------------------------------------------------------------------------
-# ENHANCED LLM SYSTEM FOR INTELLIGENT LANGUAGE TAGGING
-# ----------------------------------------------------------------------------------
-
-def get_enhanced_tutor_system_prompt():
-    """🎯 PROFESSIONAL: Enhanced system prompt for intelligent language mixing"""
-    
-    return """You are "UrduMaster" - a premium AI English language tutor designed for Urdu speakers who paid for professional English learning. You represent a commercial language learning platform.
-
-CORE IDENTITY:
-You are a certified English language instructor with 15+ years of experience teaching Urdu speakers. You hold a Master's degree in English linguistics and are perfectly bilingual in Urdu and English.
-
-🎯 CRITICAL LANGUAGE TAGGING STRATEGY:
-Use [ur] for Urdu explanations/instructions and [en] for English terms/examples.
-
-TAGGING RULES (STRATEGIC, NOT EVERY WORD):
-✅ DO: [ur] Pani English mein [en] Water [ur] kehte hain
-✅ DO: [ur] Main introduction aise karunga [en] I'm a programmer [ur] samjhe?
-✅ DO: [ur] Ye sentence structure hai [en] Subject + Verb + Object [ur] bilkul clear?
-
-❌ DON'T: [ur] Main [en] English [ur] seekhna [en] want [ur] karta [en] hun
-❌ DON'T: Over-tag every single word
-
-RESPONSE PHILOSOPHY:
-- Use Urdu [ur] for: explanations, instructions, encouragement, questions
-- Use English [en] for: vocabulary terms, example sentences, phrases to practice
-- NEVER translate the same content - each language serves a different PURPOSE
-
-CURRICULUM APPROACH:
-- Vocabulary: [ur] explanation + [en] term + [ur] usage tip + [en] example
-- Grammar: [ur] concept explanation + [en] pattern/rule + [ur] practice suggestion
-- Conversation: [ur] scenario setup + [en] key phrases + [ur] encouragement
-
-SAMPLE RESPONSES:
-Vocabulary: "[ur] 'Kitab' English mein [en] Book [ur] kehte hain. Sentence banao: [en] I read a book [ur] samjha?"
-
-Grammar: "[ur] Past tense banana hai? Simple rule: [en] I walked, You walked [ur] bas '-ed' lagao. Try karo!"
-
-Conversation: "[ur] Restaurant mein order kaise karenge? [en] I would like a coffee, please [ur] ye polite tarika hai."
-
-PROFESSIONAL STANDARDS:
-- Keep responses 2-4 sentences for engagement
-- Always include practice opportunity
-- Maintain encouraging, results-focused tone
-- Strategic language mixing, not random translation
-
-You're guiding PAID students through structured English learning. Every response must add value and move them toward fluency."""
-
-async def generate_enhanced_llm_response(prompt, api_key=None):
-    """🎯 ENHANCED: LLM response with intelligent language tagging strategy"""
-    
-    if not api_key:
-        api_key = st.session_state.openai_api_key
-        
-    if not api_key:
-        return {
-            "response": "Error: OpenAI API key not configured.",
-            "latency": 0
-        }
-    
-    start_time = time.time()
-    
-    system_prompt = get_enhanced_tutor_system_prompt()
-    
-    messages = [
-        {"role": "system", "content": system_prompt}
-    ]
-    
-    # Add conversation context (last 2 exchanges for relevance)
-    for exchange in st.session_state.conversation_history[-2:]:
-        if "user_input" in exchange:
-            messages.append({"role": "user", "content": exchange["user_input"]})
-        if "assistant_response" in exchange:
-            messages.append({"role": "assistant", "content": exchange["assistant_response"]})
-    
-    messages.append({"role": "user", "content": prompt})
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{OPENAI_API_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "gpt-4",
-                    "messages": messages,
-                    "temperature": 0.7,
-                    "max_tokens": 400,
-                    "presence_penalty": 0.1,
-                    "frequency_penalty": 0.1
-                },
-                timeout=30.0
-            )
-            
-            latency = time.time() - start_time
-            st.session_state.performance_metrics["llm_latency"].append(latency)
-            st.session_state.performance_metrics["api_calls"]["openai"] += 1
-            
-            if response.status_code == 200:
-                result = response.json()
-                response_text = result["choices"][0]["message"]["content"]
-                
-                enhanced_response = ensure_intelligent_language_markers(response_text)
-                
-                return {
-                    "response": enhanced_response,
-                    "latency": latency,
-                    "tokens": result.get("usage", {})
-                }
-            else:
-                return {
-                    "response": f"Error: {response.status_code}",
-                    "error": response.text,
-                    "latency": latency
-                }
-    
-    except Exception as e:
-        return {
-            "response": f"[ur] Maaf kijiye, technical issue hai. [en] Please try again.",
-            "latency": time.time() - start_time
-        }
-
-def ensure_intelligent_language_markers(response_text):
-    """🎯 ENHANCED: Ensure intelligent, strategic language markers"""
-    
-    if "[ur]" in response_text or "[en]" in response_text:
-        response_text = re.sub(r'\[ur\]\s*', '[ur] ', response_text)
-        response_text = re.sub(r'\[en\]\s*', '[en] ', response_text)
-        response_text = re.sub(r'\s+\[ur\]', ' [ur]', response_text)
-        response_text = re.sub(r'\s+\[en\]', ' [en]', response_text)
-        return response_text.strip()
-    
-    return apply_intelligent_tagging(response_text)
-
-def apply_intelligent_tagging(text):
-    """🎯 STRATEGIC: Apply intelligent language tagging based on content analysis"""
-    
-    english_patterns = [
-        r'\b(hello|hi|good morning|good evening|thank you|please|sorry|excuse me)\b',
-        r'\b(I am|I\'m|my name is|nice to meet you)\b', 
-        r'\b(water|book|pen|house|car|food|time|money)\b',
-        r'\b(subject|verb|object|grammar|vocabulary)\b',
-        r'\b(yes|no|maybe|okay|alright)\b'
-    ]
-    
-    tagged_text = text
-    
-    for pattern in english_patterns:
-        tagged_text = re.sub(pattern, r'[en] \g<0> [ur]', tagged_text, flags=re.IGNORECASE)
-    
-    if '[en]' in tagged_text:
-        if not tagged_text.startswith('[ur]'):
-            tagged_text = '[ur] ' + tagged_text
-        if not tagged_text.endswith('[ur]'):
-            tagged_text = tagged_text + ' [ur]'
-    else:
-        tagged_text = f'[ur] {tagged_text}'
-    
-    tagged_text = re.sub(r'\[ur\]\s*\[ur\]', '[ur]', tagged_text)
-    tagged_text = re.sub(r'\[en\]\s*\[en\]', '[en]', tagged_text)
-    tagged_text = re.sub(r'\[ur\]\s*\[en\]\s*\[ur\]', '[ur]', tagged_text)
-    
-    return tagged_text.strip()
-
-# ----------------------------------------------------------------------------------
-# SPEECH RECOGNITION (STT) SECTION
-# ----------------------------------------------------------------------------------
-
-async def transcribe_with_enhanced_prompts(audio_file):
-    """Enhanced transcription with Urdu/English pronunciation hints"""
-    start_time = time.time()
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            with open(audio_file, "rb") as f:
-                file_content = f.read()
-            
-            files = {
-                "file": (os.path.basename(audio_file), file_content, "audio/wav")
-            }
-            
-            data = {
-                "model": "whisper-1",
-                "response_format": "verbose_json",
-                "temperature": "0.0",
-                "language": None,
-                "prompt": "This audio contains Urdu and English speech from a language learning session. Focus on accurate pronunciation. Common Urdu words: main, aap, kya, kaise, English, seekhna. Common English words: hello, water, book, grammar, vocabulary, practice."
-            }
-            
-            response = await client.post(
-                "https://api.openai.com/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {st.session_state.openai_api_key}"},
-                files=files,
-                data=data,
-                timeout=30.0
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                enhanced_result = enhance_urdu_english_transcription(result)
-                latency = time.time() - start_time
-                st.session_state.performance_metrics["stt_latency"].append(latency)
-                st.session_state.performance_metrics["api_calls"]["whisper"] += 1
-                enhanced_result["latency"] = latency
-                return enhanced_result
-            else:
-                return {
-                    "text": "",
-                    "language": None,
-                    "error": f"API error: {response.status_code}",
-                    "latency": time.time() - start_time
-                }
-    
-    except Exception as e:
-        return {
-            "text": "",
-            "language": None,
-            "error": str(e),
-            "latency": time.time() - start_time
-        }
-
-def enhance_urdu_english_transcription(result):
-    """Apply Urdu/English specific pronunciation corrections"""
-    try:
-        text = result.get("text", "")
-        
-        urdu_corrections = {
-            "mein": "main",
-            "ap": "aap", 
-            "kia": "kya",
-            "kesay": "kaise",
-            "english": "English",
-            "sikhna": "seekhna"
-        }
-        
-        english_corrections = {
-            "watar": "water",
-            "buk": "book",
-            "gramar": "grammar",
-            "praktis": "practice",
-            "helo": "hello"
-        }
-        
-        corrected_text = text
-        
-        for wrong, correct in urdu_corrections.items():
-            corrected_text = re.sub(rf'\b{re.escape(wrong)}\b', correct, corrected_text, flags=re.IGNORECASE)
-        
-        for wrong, correct in english_corrections.items():
-            corrected_text = re.sub(rf'\b{re.escape(wrong)}\b', correct, corrected_text, flags=re.IGNORECASE)
-        
-        result["text"] = corrected_text
-        result["pronunciation_enhanced"] = True
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Transcription enhancement error: {str(e)}")
-        return result
-
-# ----------------------------------------------------------------------------------
-# AUDIO PROCESSING FUNCTIONS
-# ----------------------------------------------------------------------------------
-
-def amplify_recorded_audio(audio_path):
-    """Apply 500% amplification to recorded audio"""
-    try:
-        audio, sample_rate = sf.read(audio_path)
-        
-        amplified_audio = audio * 5.0
-        
-        max_val = np.max(np.abs(amplified_audio))
-        if max_val > 0.95:
-            amplified_audio = amplified_audio * (0.95 / max_val)
-        
-        try:
-            enhanced_audio = nr.reduce_noise(y=amplified_audio, sr=sample_rate)
-        except:
-            enhanced_audio = amplified_audio
-        
-        enhanced_path = tempfile.mktemp(suffix=".wav")
-        sf.write(enhanced_path, enhanced_audio, sample_rate)
-        
-        return enhanced_path
-        
-    except Exception as e:
-        logger.error(f"Audio amplification error: {str(e)}")
-        return audio_path
-
-def parse_intelligent_language_segments(text):
-    """Parse language segments intelligently"""
-    segments = []
-    
-    parts = re.split(r'(\[[a-z]{2}\])', text)
-    
-    current_language = None
-    current_text = ""
-    
-    for part in parts:
-        if re.match(r'\[[a-z]{2}\]', part):
-            if current_text.strip():
-                segments.append({
-                    "text": current_text.strip(),
-                    "language": current_language or "ur"
-                })
-            
-            current_language = part[1:-1]
-            current_text = ""
-        else:
-            current_text += part
-    
-    if current_text.strip():
-        segments.append({
-            "text": current_text.strip(),
-            "language": current_language or "ur"
-        })
-    
-    for segment in segments:
-        if segment["language"] is None:
-            segment["language"] = detect_primary_language(segment["text"])
-    
-    return segments
-
-def detect_primary_language(text):
-    """Detect the primary language of text"""
-    text_lower = text.lower()
-    
-    urdu_words = {
-        "main", "aap", "kya", "kaise", "hai", "hain", "ka", "ki", "ke", "ko",
-        "mein", "se", "tak", "par", "english", "seekhna", "sikhna", "kahte", "kehte"
-    }
-    
-    english_words = {
-        "the", "and", "is", "are", "was", "were", "have", "has", "had", "will",
-        "would", "could", "should", "can", "may", "might", "must", "shall",
-        "water", "book", "hello", "thank", "please", "sorry", "yes", "no"
-    }
-    
-    words = re.findall(r'\b\w+\b', text_lower)
-    urdu_count = sum(1 for word in words if word in urdu_words)
-    english_count = sum(1 for word in words if word in english_words)
-    
-    if urdu_count > english_count:
-        return "ur"
-    elif english_count > urdu_count:
-        return "en"
-    else:
-        return "ur"  # Default to Urdu
-
-async def process_accent_free_multilingual_text(text):
-    """🔥 CRITICAL: Process multilingual text with zero accent bleeding"""
-    
-    segments = parse_intelligent_language_segments(text)
-    
-    if len(segments) <= 1:
-        lang = segments[0]["language"] if segments else "ur"
-        audio_data, generation_time = await generate_speech_with_provider(text, lang)
-        if audio_data:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-                temp_file.write(audio_data.read())
-                return temp_file.name, generation_time
-        return None, 0
-    
-    audio_segments = []
-    total_time = 0
-    
-    for i, segment in enumerate(segments):
-        if not segment["text"].strip():
-            continue
-            
-        audio_data, generation_time = await generate_speech_with_provider(
-            segment["text"], 
-            segment["language"]
-        )
-        
-        if audio_data:
-            audio_segment = AudioSegment.from_file(audio_data, format="mp3")
-            normalized_segment = normalize_segment_perfectly(audio_segment, segment["language"])
-            audio_segments.append(normalized_segment)
-            total_time += generation_time
-    
-    if not audio_segments:
-        return None, 0
-    
-    combined_audio = audio_segments[0]
-    
-    for i in range(1, len(audio_segments)):
-        combined_audio = blend_accent_free_segments(
-            combined_audio, 
-            audio_segments[i],
-            crossfade_ms=50
-        )
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-        combined_audio.export(
-            temp_file.name, 
-            format="mp3", 
-            bitrate="256k",
-            parameters=["-ac", "1", "-ar", "44100"]
-        )
-        return temp_file.name, total_time
-
-def normalize_segment_perfectly(audio_segment, language_code):
-    """Perfect normalization for accent-free blending"""
-    target_dbfs = -18.0
-    
-    current_dbfs = audio_segment.dBFS
-    volume_adjustment = target_dbfs - current_dbfs
-    normalized = audio_segment.apply_gain(volume_adjustment)
-    
-    if language_code == "ur":
-        normalized = normalized.apply_gain(0.5)
-    
-    return normalized
-
-def blend_accent_free_segments(segment1, segment2, crossfade_ms=50):
-    """Blend segments with zero accent artifacts"""
-    
-    seg1_normalized = normalize_segment_perfectly(segment1, "auto")
-    seg2_normalized = normalize_segment_perfectly(segment2, "auto")
-    
-    blended = seg1_normalized.append(seg2_normalized, crossfade=crossfade_ms)
-    
-    return blended
-
-# ----------------------------------------------------------------------------------
-# MAIN VOICE PROCESSING PIPELINE
-# ----------------------------------------------------------------------------------
-
-async def process_voice_input_accent_free(audio_file):
-    """🔥 ACCENT-FREE: Voice processing with enhanced accent elimination"""
-    pipeline_start_time = time.time()
-    
-    try:
-        st.session_state.message_queue.put("🎧 Preparing audio for accent-free processing...")
-        
-        enhanced_audio_file = amplify_recorded_audio(audio_file)
-        
-        st.session_state.message_queue.put("🎯 Transcribing with Urdu/English context...")
-        
-        transcription = await asyncio.wait_for(
-            transcribe_with_enhanced_prompts(enhanced_audio_file),
-            timeout=30.0
-        )
-        
-        if not transcription or not transcription.get("text"):
-            st.session_state.message_queue.put("❌ No clear speech detected")
-            return None, None, 0, 0, 0
-        
-        user_input = transcription["text"].strip()
-        st.session_state.message_queue.put(f"📝 Detected: {user_input}")
-        
-        st.session_state.message_queue.put("🤖 Generating intelligent tutor response...")
-        
-        llm_result = await generate_enhanced_llm_response(user_input)
-        
-        if "error" in llm_result:
-            st.session_state.message_queue.put(f"❌ Response error: {llm_result.get('error')}")
-            return user_input, None, transcription.get("latency", 0), 0, 0
-        
-        response_text = llm_result["response"]
-        st.session_state.message_queue.put(f"💬 Generated: {response_text}")
-        
-        st.session_state.message_queue.put(f"🎵 Generating accent-free speech with {st.session_state.tts_provider.upper()}...")
-        audio_path, tts_latency = await process_accent_free_multilingual_text(response_text)
-        
-        total_latency = time.time() - pipeline_start_time
-        st.session_state.performance_metrics["total_latency"].append(total_latency)
-        
-        # Update conversation history
-        st.session_state.conversation_history.append({
-            "timestamp": datetime.now().isoformat(),
-            "user_input": user_input,
-            "assistant_response": response_text,
-            "tts_provider": st.session_state.tts_provider,
-            "latency": {
-                "stt": transcription.get("latency", 0),
-                "llm": llm_result.get("latency", 0),
-                "tts": tts_latency,
-                "total": total_latency
-            }
-        })
-        
-        st.session_state.message_queue.put(f"✅ Accent-Free Processing Complete with {st.session_state.tts_provider.upper()}! ({total_latency:.2f}s)")
-        
-        if enhanced_audio_file != audio_file:
-            try:
-                os.unlink(enhanced_audio_file)
-            except:
-                pass
-        
-        return user_input, audio_path, transcription.get("latency", 0), llm_result.get("latency", 0), tts_latency
-        
-    except Exception as e:
-        logger.error(f"Accent-free processing error: {str(e)}")
-        st.session_state.message_queue.put(f"❌ Error: {str(e)}")
-        return None, None, 0, 0, 0
-
-async def process_text_input_enhanced(text):
-    """Process text input with multiple TTS providers"""
-    pipeline_start_time = time.time()
-    
-    st.session_state.message_queue.put("🤖 Generating intelligent tutor response...")
-    
-    llm_result = await generate_enhanced_llm_response(text)
-    
-    if "error" in llm_result:
-        st.session_state.message_queue.put(f"❌ Response error: {llm_result.get('error')}")
-        return None, llm_result.get("latency", 0), 0
-    
-    response_text = llm_result["response"]
-    st.session_state.message_queue.put(f"💬 Generated: {response_text}")
-    
-    st.session_state.message_queue.put(f"🎵 Generating speech with {st.session_state.tts_provider.upper()}...")
-    audio_path, tts_latency = await process_accent_free_multilingual_text(response_text)
-    
-    total_latency = time.time() - pipeline_start_time
-    st.session_state.performance_metrics["total_latency"].append(total_latency)
-    
-    # Update conversation history
-    st.session_state.conversation_history.append({
-        "timestamp": datetime.now().isoformat(),
-        "user_input": text,
-        "assistant_response": response_text,
-        "tts_provider": st.session_state.tts_provider,
-        "latency": {
-            "stt": 0,
-            "llm": llm_result.get("latency", 0),
-            "tts": tts_latency,
-            "total": total_latency
-        }
-    })
-    
-    st.session_state.message_queue.put(f"✅ Complete with {st.session_state.tts_provider.upper()}! ({total_latency:.2f}s)")
-    
-    return audio_path, llm_result.get("latency", 0), tts_latency
-
-# ----------------------------------------------------------------------------------
-# HTML5 AUDIO RECORDER COMPONENT
-# ----------------------------------------------------------------------------------
+# Audio recording and processing functions
+import streamlit.components.v1 as components
 
 def create_audio_recorder_component():
-    """Create HTML5 audio recorder component"""
+    """Create HTML5 audio recorder component with WORKING auto-processing"""
     html_code = """
     <div style="padding: 20px; border: 2px solid #ff4b4b; border-radius: 10px; text-align: center; background-color: #f0f2f6;">
         <div id="status" style="font-size: 18px; margin-bottom: 15px; font-weight: bold;">🎤 Ready to Record</div>
@@ -954,6 +289,7 @@ def create_audio_recorder_component():
         
         <div id="timer" style="font-size: 14px; margin-top: 10px; color: #666;">00:00</div>
         
+        <!-- Download link for reliable processing -->
         <div id="downloadSection" style="margin-top: 15px; display: none;">
             <a id="downloadLink" style="background: #4CAF50; color: white; padding: 10px 20px; 
                                         text-decoration: none; border-radius: 5px; font-weight: bold;">
@@ -972,6 +308,7 @@ def create_audio_recorder_component():
         let timerInterval;
         let recordedBlob = null;
 
+        // Initialize when page loads
         window.onload = function() {
             initializeRecorder();
         };
@@ -1000,7 +337,10 @@ def create_audio_recorder_component():
                 mediaRecorder.onstop = function() {
                     recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     
+                    // Update status
                     document.getElementById('status').innerHTML = '✅ Recording Complete!';
+                    
+                    // Show download immediately for reliable processing
                     showDownloadLink();
                 };
                 
@@ -1017,6 +357,7 @@ def create_audio_recorder_component():
             const statusDiv = document.getElementById('status');
             
             if (!isRecording) {
+                // Start recording
                 audioChunks = [];
                 recordingTime = 0;
                 isRecording = true;
@@ -1025,12 +366,17 @@ def create_audio_recorder_component():
                 recordBtn.style.background = '#666';
                 statusDiv.innerHTML = '🔴 RECORDING - Speak in Urdu or English';
                 
+                // Hide download section
                 document.getElementById('downloadSection').style.display = 'none';
                 
+                // Start timer
                 timerInterval = setInterval(updateTimer, 1000);
+                
+                // Start recording
                 mediaRecorder.start(1000);
                 
             } else {
+                // Stop recording
                 isRecording = false;
                 mediaRecorder.stop();
                 
@@ -1038,6 +384,7 @@ def create_audio_recorder_component():
                 recordBtn.style.background = '#ff4b4b';
                 statusDiv.innerHTML = '⏳ Processing recording...';
                 
+                // Stop timer
                 clearInterval(timerInterval);
             }
         }
@@ -1050,6 +397,7 @@ def create_audio_recorder_component():
                 `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
 
+        // Reliable download approach
         function showDownloadLink() {
             if (recordedBlob) {
                 const url = URL.createObjectURL(recordedBlob);
@@ -1058,12 +406,15 @@ def create_audio_recorder_component():
                 downloadLink.href = url;
                 downloadLink.download = 'my-recording.webm';
                 
+                // Show download section
                 document.getElementById('downloadSection').style.display = 'block';
                 
+                // Auto-click after 2 seconds
                 setTimeout(() => {
                     downloadLink.click();
                 }, 2000);
                 
+                // Update status
                 document.getElementById('status').innerHTML = '✅ Recording ready! Download and upload below.';
             }
         }
@@ -1072,23 +423,1159 @@ def create_audio_recorder_component():
     
     return st.components.v1.html(html_code, height=250)
 
+# Audio processing functions
+def convert_webm_to_wav(webm_path):
+    """Convert WebM audio to WAV format"""
+    try:
+        from pydub import AudioSegment
+        
+        # Load WebM audio
+        audio = AudioSegment.from_file(webm_path, format="webm")
+        
+        # Convert to WAV
+        wav_path = tempfile.mktemp(suffix=".wav")
+        audio.export(wav_path, format="wav", parameters=["-ar", "16000", "-ac", "1"])
+        
+        return wav_path
+        
+    except Exception as e:
+        logger.error(f"WebM to WAV conversion error: {str(e)}")
+        return webm_path
+
+def amplify_recorded_audio(audio_path):
+    """Apply 500% amplification to recorded audio"""
+    try:
+        # Load audio
+        audio, sample_rate = sf.read(audio_path)
+        
+        # Apply 500% amplification
+        amplified_audio = audio * 5.0
+        
+        # Prevent clipping
+        max_val = np.max(np.abs(amplified_audio))
+        if max_val > 0.95:
+            amplified_audio = amplified_audio * (0.95 / max_val)
+        
+        # Apply noise reduction
+        try:
+            enhanced_audio = nr.reduce_noise(y=amplified_audio, sr=sample_rate)
+        except:
+            enhanced_audio = amplified_audio
+        
+        # Save enhanced audio
+        enhanced_path = tempfile.mktemp(suffix=".wav")
+        sf.write(enhanced_path, enhanced_audio, sample_rate)
+        
+        return enhanced_path
+        
+    except Exception as e:
+        logger.error(f"Audio amplification error: {str(e)}")
+        return audio_path
+
+# ----------------------------------------------------------------------------------
+# SPEECH RECOGNITION (STT) SECTION - UPDATED FOR URDU-ENGLISH
+# ----------------------------------------------------------------------------------
+
+class AudioRecorder:
+    """Class for recording and processing audio input"""
+    
+    def __init__(self):
+        self.recording = False
+        self.audio_data = []
+        self.sample_rate = 16000  # Whisper prefers 16kHz
+        
+    def start_recording(self):
+        """Start recording audio"""
+        self.recording = True
+        self.audio_data = []
+        
+        def record_thread():
+            with sd.InputStream(samplerate=self.sample_rate, channels=1, callback=self._audio_callback):
+                while self.recording:
+                    time.sleep(0.1)
+        
+        self.thread = threading.Thread(target=record_thread)
+        self.thread.start()
+        return True
+    
+    def _audio_callback(self, indata, frames, time, status):
+        """Callback for audio data"""
+        if status:
+            logger.warning(f"Audio callback status: {status}")
+        self.audio_data.append(indata.copy())
+    
+    def stop_recording(self):
+        """Stop recording and return audio data"""
+        if not self.recording:
+            return None
+            
+        self.recording = False
+        self.thread.join()
+        
+        if not self.audio_data:
+            return None
+            
+        # Combine all audio chunks
+        audio = np.concatenate(self.audio_data, axis=0)
+        
+        # Reset for next recording
+        self.audio_data = []
+        
+        return audio, self.sample_rate
+    
+    def save_audio(self, audio_data, filename="recorded_audio.wav"):
+        """Save audio data to file"""
+        if audio_data is None:
+            return None
+            
+        audio, sample_rate = audio_data
+        sf.write(filename, audio, sample_rate)
+        return filename
+
+    def enhance_audio_quality(self, audio_data):
+        """Enhance audio quality for better transcription, including noise reduction"""
+        if audio_data is None:
+            return None
+            
+        # Handle both tuple and file path inputs
+        if isinstance(audio_data, tuple):
+            audio, sample_rate = audio_data
+            # Save to temporary file
+            temp_wav = "temp_enhance.wav"
+            sf.write(temp_wav, audio, sample_rate)
+        else:
+            # audio_data is a file path
+            temp_wav = audio_data
+        
+        try:
+            # Load with pydub for processing
+            audio_segment = AudioSegment.from_wav(temp_wav)
+            
+            # Normalize volume
+            normalized_audio = audio_segment.normalize()
+            
+            # Remove silence at beginning and end
+            trimmed_audio = self._trim_silence(normalized_audio)
+            
+            # Convert to numpy array for noise reduction
+            samples = np.array(trimmed_audio.get_array_of_samples()).astype(np.float32)
+            
+            # Apply noise reduction
+            reduced_noise = nr.reduce_noise(y=samples, sr=self.sample_rate)
+            
+            # Convert back to AudioSegment
+            reduced_audio = AudioSegment(
+                reduced_noise.astype(np.int16).tobytes(),
+                frame_rate=self.sample_rate,
+                sample_width=2,
+                channels=1
+            )
+            
+            # Export enhanced audio
+            enhanced_wav = "enhanced_recording.wav"
+            reduced_audio.export(enhanced_wav, format="wav")
+            
+            # Clean up temp file if we created it
+            if isinstance(audio_data, tuple) and os.path.exists(temp_wav):
+                os.remove(temp_wav)
+                
+            return enhanced_wav
+            
+        except Exception as e:
+            logger.error(f"Audio enhancement error: {str(e)}")
+            return temp_wav if os.path.exists(temp_wav) else None
+        
+    def _trim_silence(self, audio_segment, silence_threshold=-50, min_silence_len=300):
+        """Remove silence from beginning and end of recording"""
+        # Split on silence
+        chunks = split_on_silence(
+            audio_segment, 
+            min_silence_len=min_silence_len,
+            silence_thresh=silence_threshold,
+            keep_silence=100  # Keep 100ms of silence
+        )
+        
+        # If no chunks found, return original
+        if not chunks:
+            return audio_segment
+            
+        # Combine chunks
+        combined_audio = chunks[0]
+        for chunk in chunks[1:]:
+            combined_audio += chunk
+            
+        return combined_audio
+
+async def transcribe_with_api(audio_file, api_key):
+    """Enhanced transcription with pronunciation focus for Urdu/English"""
+    start_time = time.time()
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Open file in binary mode
+            with open(audio_file, "rb") as f:
+                file_content = f.read()
+            
+            # Prepare the multipart form data
+            files = {
+                "file": (os.path.basename(audio_file), file_content, "audio/wav")
+            }
+            
+            # ENHANCED: Pronunciation-focused settings for Urdu/English
+            data = {
+                "model": "whisper-1",
+                "response_format": "verbose_json",
+                "temperature": "0.0",  # LOWEST temperature for consistent pronunciation
+                "language": None,  # Let Whisper auto-detect between ur/en
+                "prompt": "This audio contains Urdu and English speech. Focus on accurate pronunciation and phonetic understanding. Common Urdu words: assalam alaikum, shukriya, meherbani, acha. Common English words: hello, thank you, please, good."  # Pronunciation hints
+            }
+            
+            # Send the request with pronunciation-enhanced settings
+            response = await client.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                files=files,
+                data=data,
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                # ENHANCED: Apply pronunciation-based post-processing
+                enhanced_result = enhance_pronunciation_transcription(result)
+                
+                # Calculate latency and update metrics
+                latency = time.time() - start_time
+                st.session_state.performance_metrics["stt_latency"].append(latency)
+                st.session_state.performance_metrics["api_calls"]["whisper"] += 1
+                
+                return enhanced_result
+            else:
+                logger.error(f"API error: {response.status_code} - {response.text}")
+                return {
+                    "text": "",
+                    "language": None,
+                    "error": f"API error: {response.status_code} - {response.text}",
+                    "latency": time.time() - start_time
+                }
+    
+    except Exception as e:
+        logger.error(f"Enhanced transcription API error: {str(e)}")
+        return {
+            "text": "",
+            "language": None,
+            "error": str(e),
+            "latency": time.time() - start_time
+        }
+
+def enhance_pronunciation_transcription(result):
+    """Post-process transcription for better pronunciation understanding"""
+    try:
+        text = result.get("text", "")
+        language = result.get("language", "auto")
+        segments = result.get("segments", [])
+        
+        # Apply pronunciation-based corrections
+        enhanced_text = apply_pronunciation_corrections(text, language)
+        
+        # Enhance segments with pronunciation markers
+        enhanced_segments = []
+        for segment in segments:
+            enhanced_segment = segment.copy()
+            enhanced_segment["text"] = apply_pronunciation_corrections(
+                segment.get("text", ""), language
+            )
+            enhanced_segments.append(enhanced_segment)
+        
+        return {
+            "text": enhanced_text,
+            "language": language,
+            "segments": enhanced_segments,
+            "latency": result.get("latency", 0),
+            "pronunciation_enhanced": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Pronunciation enhancement error: {str(e)}")
+        return result
+
+def apply_pronunciation_corrections(text, language):
+    """Apply pronunciation-based corrections for Urdu/English"""
+    if not text:
+        return text
+    
+    # Urdu pronunciation corrections
+    urdu_corrections = {
+        # Common mispronunciations to correct pronunciations
+        "assalam": "assalam alaikum",
+        "shukria": "shukriya",
+        "mehrbani": "meherbani", 
+        "acha": "acha",
+        "theek": "theek hai",
+        "namaste": "assalam alaikum",  # Convert to proper Urdu greeting
+    }
+    
+    # English pronunciation corrections
+    english_corrections = {
+        "hello": "hello",
+        "thank you": "thank you", 
+        "please": "please",
+        "good": "good",
+        "morning": "morning",
+        "evening": "evening",
+        "how are you": "how are you",
+        "fine": "fine",
+        "okay": "okay"
+    }
+    
+    # Apply corrections based on detected language or overall context
+    corrected_text = text
+    
+    # Apply Urdu corrections if Urdu content detected
+    if language == "ur" or any(word in text.lower() for word in ["assalam", "shukriya", "meherbani"]):
+        for wrong, correct in urdu_corrections.items():
+            corrected_text = re.sub(rf'\b{re.escape(wrong)}\b', correct, corrected_text, flags=re.IGNORECASE)
+    
+    # Apply English corrections if English content detected  
+    if language == "en" or any(word in text.lower() for word in ["hello", "thank", "please"]):
+        for wrong, correct in english_corrections.items():
+            corrected_text = re.sub(rf'\b{re.escape(wrong)}\b', correct, corrected_text, flags=re.IGNORECASE)
+    
+    return corrected_text
+
+# ----------------------------------------------------------------------------------
+# LANGUAGE MODEL (LLM) SECTION - UPDATED FOR URDU-ENGLISH TUTORING
+# ----------------------------------------------------------------------------------
+
+async def generate_llm_response(prompt, system_prompt=None, api_key=None):
+    """Generate response with INTELLIGENT language tagging for Urdu-English"""
+    if not api_key:
+        api_key = st.session_state.openai_api_key
+        
+    if not api_key:
+        logger.error("OpenAI API key not provided")
+        return {
+            "response": "Error: OpenAI API key not configured. Please set it in the sidebar.",
+            "latency": 0
+        }
+    
+    start_time = time.time()
+    
+    messages = []
+        
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    else:
+        response_language = st.session_state.response_language
+        
+        if response_language == "both":
+            system_content = """🎓 ENGLISHMASTER PROFESSIONAL LANGUAGE INSTRUCTION SYSTEM 
+
+            ═══════════════════════════════════════════════════════════════════
+
+            🏆 INSTRUCTOR PROFILE & CREDENTIALS
+            You are Dr. EnglishMaster, a premium certified English language instructor with:
+            - 15+ years specialized experience: Urdu → English language acquisition
+            - M.A. Applied Linguistics, University of Cambridge  
+            - Certified IELTS/TOEFL examiner (A1-C2 levels)
+            - Published researcher in Urdu-English phonetic interference
+            - 98% student satisfaction rate, 2000+ successful graduates
+            - Specialization: Accent elimination and pronunciation perfection
+
+            ═══════════════════════════════════════════════════════════════════
+
+            🚨 MISSION-CRITICAL TECHNICAL REQUIREMENTS (ZERO TOLERANCE)
+
+            ⚠️ TAGGING PROTOCOL ALPHA-7 (MANDATORY COMPLIANCE)
+            Every response MUST pass these technical specifications:
+
+            SPECIFICATION 1: ABSOLUTE LANGUAGE ISOLATION
+            ❌ VIOLATION: "[en] Hello - Assalam"              ← ACCENT BLEEDING
+            ❌ VIOLATION: "[en] Thank you - Shukriya"         ← ACCENT BLEEDING  
+            ❌ VIOLATION: "[ur] Hum kehte hain Water"         ← ACCENT BLEEDING
+            ✅ COMPLIANT: "[en] Hello [ur] - assalam alaikum" ← PERFECT ISOLATION
+            ✅ COMPLIANT: "[en] Thank you [ur] - shukriya"    ← PERFECT ISOLATION
+            ✅ COMPLIANT: "[ur] Hum kehte hain [en] Water"    ← PERFECT ISOLATION
+
+            SPECIFICATION 2: ZERO UNTAGGED CONTENT TOLERANCE
+            ❌ VIOLATION: "Umeed hai madad milegi!"           ← UNTAGGED CONTENT
+            ❌ VIOLATION: "[ur] Lafz Water ka matlab"         ← MIXED TAGGING
+            ✅ COMPLIANT: "[ur] Umeed hai madad milegi!"      ← FULLY TAGGED
+            ✅ COMPLIANT: "[ur] Lafz [en] Water [ur] ka matlab" ← PRECISE TAGGING
+
+            SPECIFICATION 3: VOCABULARY ENUMERATION PROTOCOL
+            ❌ CRITICAL FAILURE:
+            "[en] 1. Hello - Assalam
+            2. Thank you - Shukriya
+            3. Please - Meherbani"
+
+            ✅ TECHNICAL COMPLIANCE:
+            "[ur] 1. [en] Hello [ur] - assalam alaikum
+            [ur] 2. [en] Thank you [ur] - shukriya  
+            [ur] 3. [en] Please [ur] - meherbani"
+
+            SPECIFICATION 4: TRANSLATION BOUNDARY ENFORCEMENT
+            ❌ VIOLATION: "[en] Water - paani"
+            ❌ VIOLATION: "[ur] Assalam alaikum - Hello"
+            ✅ COMPLIANT: "[en] Water [ur] - paani"
+            ✅ COMPLIANT: "[ur] Assalam alaikum - [en] Hello"
+
+            ═══════════════════════════════════════════════════════════════════
+
+            📚 ADVANCED PEDAGOGICAL FRAMEWORK
+
+            🎯 CURRICULUM ARCHITECTURE (CEFR-ALIGNED)
+            ├── A1 FOUNDATION MODULE
+            │   ├── Phonetic System Integration (English → Urdu mapping)
+            │   ├── Core Lexicon: be/have conjugation mastery
+            │   ├── Article System: a/an/the with mnemonic techniques
+            │   ├── Survival Vocabulary: 200 high-frequency lexemes
+            │   └── Basic Syntax: SOV → SVO transformation patterns
+            │
+            └── A2 INTERMEDIATE MODULE
+                ├── Temporal System: Present/Past/Future tense mastery
+                ├── Modal Verb Complex: can/must/should/would
+                ├── Question Formation: Wh-questions and yes/no queries
+                ├── Preposition Mastery: spatial/temporal relationships
+                └── Phrasal Verb Mechanics: common combinations
+
+            🧠 COGNITIVE LEARNING STRATEGIES
+            1. MICROLEARNING PROTOCOL: 2-3 sentence maximum responses
+            2. SCAFFOLDED PROGRESSION: Known → Unknown concept bridging
+            3. CONTEXTUALIZED ACQUISITION: Real-world scenario integration
+            4. METACOGNITIVE AWARENESS: Pattern recognition development
+            5. SPACED REPETITION: Strategic concept reinforcement
+            6. ERROR ANTICIPATION: Urdu L1 interference prediction
+
+            🎭 ENGAGEMENT METHODOLOGY
+            ├── SOCRATIC QUESTIONING: Student discovery facilitation
+            ├── TASK-BASED LEARNING: Practical application focus
+            ├── CULTURAL INTEGRATION: English-speaking world context
+            ├── CONFIDENCE BUILDING: Positive reinforcement protocols
+            └── AUTONOMY DEVELOPMENT: Self-correction skill building
+
+            ═══════════════════════════════════════════════════════════════════
+
+            💎 PROFESSIONAL RESPONSE TEMPLATES
+
+            🗣️ VOCABULARY INSTRUCTION TEMPLATE:
+            "[ur] Bahut acha sawal! Angrezi mein [en] {ENGLISH_WORD} [ur] ka matlab hai {URDU_MEANING}. Note: {GRAMMATICAL_INFO}. Misal: [en] {EXAMPLE_SENTENCE} [ur]. Aap try kariye: {PRACTICE_TASK}?"
+
+            🔧 GRAMMAR CORRECTION TEMPLATE:
+            "[ur] Bilkul qareeb! [en] {INCORRECT_FORM} [ur] ki jagah [en] {CORRECT_FORM} [ur] istemal kariye, kyunki {GRAMMATICAL_REASON}. Sahi tariqa: [en] {CORRECTED_SENTENCE} [ur]. Samjh gaye?"
+
+            📋 VOCABULARY LIST TEMPLATE:
+            "[ur] {CATEGORY_NAME}:
+            [ur] 1. [en] {ENGLISH_1} [ur] - {URDU_1}
+            [ur] 2. [en] {ENGLISH_2} [ur] - {URDU_2}  
+            [ur] 3. [en] {ENGLISH_3} [ur] - {URDU_3}
+            [ur] Kaunsa lafz aap ke liye sabse zaroori hai?"
+
+            🎯 CONVERSATION PRACTICE TEMPLATE:
+            "[ur] Ye scenario sochiyen: {SCENARIO}. Kahiye: [en] {ENGLISH_PHRASE} [ur]. Iska matlab: {EXPLANATION}. Agar koi pooche [en] {FOLLOW_UP_QUESTION} [ur] toh aap kya jawab denge?"
+
+            ═══════════════════════════════════════════════════════════════════
+
+            🔬 QUALITY ASSURANCE PROTOCOL
+
+            PRE-TRANSMISSION CHECKLIST:
+            □ Language isolation verified (no mixed tags)
+            □ Complete tagging coverage (zero untagged content)
+            □ Urdu explanatory language clarity
+            □ English example accuracy and appropriateness
+            □ Practice opportunity integration
+            □ Cultural sensitivity compliance
+            □ Pronunciation guidance inclusion
+            □ Student engagement element present
+
+            LINGUISTIC ACCURACY STANDARDS:
+            - English grammar: 100% accuracy required
+            - Urdu explanations: Native-level fluency
+            - Phonetic annotations: IPA-compliant where needed
+            - Cultural references: Authentic and current
+            - Pedagogical progression: CEFR-aligned
+
+            ═══════════════════════════════════════════════════════════════════
+
+            🎖️ PROFESSIONAL EXCELLENCE INDICATORS
+
+            CLIENT SUCCESS METRICS:
+            ✓ Accent-free pronunciation achievement
+            ✓ Natural language switching capability  
+            ✓ Confidence in English communication
+            ✓ Cultural competency development
+            ✓ Independent learning skill acquisition
+
+            INSTRUCTOR PERFORMANCE STANDARDS:
+            ✓ Technical tagging precision: 100%
+            ✓ Pedagogical effectiveness: Premium level
+            ✓ Student engagement: Maximum retention
+            ✓ Cultural authenticity: Native-equivalent
+            ✓ Professional demeanor: Executive standard
+
+            ═══════════════════════════════════════════════════════════════════
+
+            🚀 EXECUTION MANDATE
+
+            You represent a premium language education service. Every interaction must:
+            - Demonstrate exceptional pedagogical expertise
+            - Deliver measurable learning outcomes
+            - Maintain absolute technical precision
+            - Exceed client expectations consistently
+            - Advance student toward fluency goals
+
+            REMEMBER: Perfect tagging = Perfect pronunciation = Premium results = Professional success
+
+            Your reputation and the institution's excellence depend on flawless execution.
+
+            BEGIN INSTRUCTION WITH CONFIDENCE AND PRECISION.
+                ⚠️ CRITICAL: EVERY SINGLE WORD MUST BE CORRECTLY TAGGED ⚠️
+
+            🚨 ABSOLUTE RULES (VIOLATION = SYSTEM FAILURE):
+        
+            RULE 1: ENGLISH WORDS ALWAYS GET [en] TAGS
+            ❌ WRONG: "[ur] English mein Water hai"
+            ✅ RIGHT: "[ur] English mein [en] Water [ur] hai"
+        
+            RULE 2: URDU WORDS ALWAYS GET [ur] TAGS  
+            ❌ WRONG: "[en] Bread (roti)"
+            ✅ RIGHT: "[en] Bread [ur] (roti)"
+        
+            RULE 3: EVERY LANGUAGE SWITCH = NEW TAG
+            ❌ WRONG: "[en] Hello, kya haal hai?"
+            ✅ RIGHT: "[en] Hello [ur], kya haal hai?"
+        
+            RULE 4: LISTS MUST TAG EACH ITEM
+            ❌ WRONG: "[en] Bread (roti), House (ghar)"
+            ✅ RIGHT: "[en] Bread [ur] (roti), [en] House [ur] (ghar)"
+        
+            🎯 MANDATORY RESPONSE PATTERNS:
+        
+            FOR VOCABULARY REQUESTS:
+            "[ur] Lafz '{URDU_WORD}' English mein [en] {ENGLISH_WORD} [ur] hai. Aur alfaz: [en] {WORD1} [ur] ({URDU1}), [en] {WORD2} [ur] ({URDU2}). Kya chahiye?"
+        
+            FOR EXPLANATIONS:
+            "[ur] {EXPLANATION} [en] {ENGLISH_EXAMPLE} [ur] {CLARIFICATION}"
+        
+            🔍 PRE-SEND VERIFICATION:
+            - Check: Is every English word tagged with [en]?
+            - Check: Is every Urdu word/explanation tagged with [ur]?
+            - Check: Are parenthetical translations tagged correctly?
+            - Check: No untagged content exists?
+        
+            You are a PREMIUM instructor. PERFECT tagging = PERFECT pronunciation = SATISFIED CLIENT.
+        
+            ZERO MISTAKES TOLERATED. BEGIN
+            ═══════════════════════════════════════════════════════════════════"""
+
+        elif response_language == "ur":
+            system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
+        elif response_language == "en":
+            system_content = "You are a helpful English assistant. ALWAYS respond ONLY in English with [en] markers."
+            
+        messages.append({"role": "system", "content": system_content})
+    
+    # Add conversation context (last 2 exchanges only)
+    for exchange in st.session_state.conversation_history[-2:]:
+        if "user_input" in exchange:
+            messages.append({"role": "user", "content": exchange["user_input"]})
+        if "assistant_response" in exchange:
+            messages.append({"role": "assistant", "content": exchange["assistant_response"]})
+    
+    messages.append({"role": "user", "content": prompt})
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{OPENAI_API_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "gpt-4",
+                    "messages": messages,
+                    "temperature": 0.3,  # Lower for more consistent tagging
+                    "max_tokens": 300
+                },
+                timeout=30.0
+            )
+            
+            latency = time.time() - start_time
+            st.session_state.performance_metrics["llm_latency"].append(latency)
+            st.session_state.performance_metrics["api_calls"]["openai"] += 1
+            
+            if response.status_code == 200:
+                result = response.json()
+                response_text = result["choices"][0]["message"]["content"]
+                
+                # Clean up tagging intelligently
+                response_text = clean_intelligent_tags(response_text)
+                
+                return {
+                    "response": response_text,
+                    "latency": latency,
+                    "tokens": result.get("usage", {})
+                }
+            else:
+                logger.error(f"LLM API error: {response.status_code} - {response.text}")
+                return {
+                    "response": f"Error: {response.status_code}",
+                    "error": response.text,
+                    "latency": latency
+                }
+    
+    except Exception as e:
+        logger.error(f"LLM error: {str(e)}")
+        return {
+            "response": f"Error: {str(e)}",
+            "latency": time.time() - start_time
+        }
+
+def clean_intelligent_tags(response_text):
+    """Clean up intelligent language tags for Urdu-English"""
+    # Remove excessive tagging
+    response_text = re.sub(r'\[ur\]\s*\[ur\]', '[ur]', response_text)
+    response_text = re.sub(r'\[en\]\s*\[en\]', '[en]', response_text)
+    
+    # Ensure proper spacing
+    response_text = re.sub(r'\[ur\]\s*', '[ur] ', response_text)
+    response_text = re.sub(r'\[en\]\s*', '[en] ', response_text)
+    
+    # If no tags at all, add Urdu as default
+    if not re.search(r'\[ur\]|\[en\]', response_text):
+        response_text = f"[ur] {response_text}"
+    
+    return response_text.strip()
+
+def detect_primary_language(text):
+    """Detect the primary language of a text with improved accuracy for Urdu-English"""
+    # Urdu-specific characters (Arabic script)
+    urdu_chars = set("آاأإئبپتٹثجچحخدڈذرڑزژسشصضطظعغفقکگلمنںہویے")
+    
+    # English-specific characters (Latin script)
+    english_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    
+    # Count language-specific characters
+    text_lower = text.lower()
+    urdu_count = sum(1 for char in text if char in urdu_chars)
+    english_count = sum(1 for char in text if char in english_chars)
+    
+    # Urdu-specific words (romanized)
+    urdu_words = {
+        "aap", "hum", "main", "ye", "wo", "hai", "hain", "tha", "thi", "the",
+        "assalam", "alaikum", "shukriya", "meherbani", "kya", "kaise", "kahan", "kab",
+        "acha", "theek", "bura", "namaste", "adaab", "khuda", "hafiz", "inshallah",
+        "mashallah", "subhanallah", "paani", "roti", "ghar", "dil", "pyaar"
+    }
+    
+    # English-specific words
+    english_words = {
+        "i", "you", "he", "she", "it", "we", "they", "am", "is", "are", "was", "were",
+        "hello", "hi", "thank", "you", "please", "good", "bad", "yes", "no",
+        "the", "a", "an", "and", "or", "but", "if", "when", "where", "how", "what",
+        "who", "why", "water", "bread", "house", "love", "heart", "time"
+    }
+    
+    # Count word occurrences
+    words = re.findall(r'\b\w+\b', text_lower)
+    urdu_word_count = sum(1 for word in words if word in urdu_words)
+    english_word_count = sum(1 for word in words if word in english_words)
+    
+    # Improved scoring system with weighted metrics
+    urdu_evidence = urdu_count * 3 + urdu_word_count * 2  # Higher weight for Urdu script
+    english_evidence = english_count * 1 + english_word_count * 2
+    
+    # Determine primary language
+    if urdu_evidence > english_evidence and urdu_evidence > 0:
+        return "ur"
+    elif english_evidence > urdu_evidence and english_evidence > 0:
+        return "en"
+    
+    # If unable to determine, use default based on distribution preference
+    if st.session_state.language_distribution["ur"] >= st.session_state.language_distribution["en"]:
+        return "ur"
+    else:
+        return "en"
+
+# ----------------------------------------------------------------------------------
+# TEXT-TO-SPEECH (TTS) SECTION - UPDATED WITH COQUI XTTS
+# ----------------------------------------------------------------------------------
+
+def get_voices():
+    """Fetch available voices from ElevenLabs API with robust error handling"""
+    api_key = st.session_state.elevenlabs_api_key
+    if not api_key or not isinstance(api_key, str) or not api_key.strip():
+        st.error("ElevenLabs API key is missing or invalid. Please set it in the sidebar.")
+        return []
+    headers = {
+        "Accept": "application/json",
+        "xi-api-key": api_key
+    }
+    try:
+        response = requests.get(f"{ELEVENLABS_API_URL}/voices", headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if "voices" in data:
+                return data["voices"]
+            else:
+                st.error("No 'voices' key in ElevenLabs API response. Full response: " + str(data))
+                return []
+        else:
+            st.error(f"Failed to get voices: {response.status_code} - {response.text}")
+            return []
+    except Exception as e:
+        st.error(f"Error fetching voices: {e}")
+        return []
+
+def generate_speech(text, language_code=None, voice_id=None):
+    """Generate speech using ElevenLabs with selected speaker"""
+    if not text or text.strip() == "":
+        logger.error("Empty text provided to generate_speech")
+        return None, 0
+    
+    api_key = st.session_state.elevenlabs_api_key
+    if not api_key:
+        logger.error("ElevenLabs API key not provided")
+        return None, 0
+    
+    # Get selected speaker configuration
+    selected_speaker_name = st.session_state.selected_speakers.get("elevenlabs", "Rachel")
+    speaker_config = st.session_state.provider_voice_configs["elevenlabs"]["speakers"][selected_speaker_name]
+    selected_voice_id = voice_id or speaker_config["voice_id"]
+    
+    logger.info(f"Using ElevenLabs speaker: {selected_speaker_name} ({selected_voice_id})")
+    
+    headers = {
+        "Accept": "audio/mpeg",
+        "Content-Type": "application/json",
+        "xi-api-key": api_key
+    }
+    
+    model_id = speaker_config["model"]
+    
+    # Language-specific voice settings for accent isolation
+    if language_code and language_code in st.session_state.voice_settings:
+        voice_settings = st.session_state.voice_settings[language_code].copy()
+        logger.info(f"Using optimized {language_code} settings: {voice_settings}")
+    else:
+        voice_settings = st.session_state.voice_settings["default"]
+    
+    # SSML enhancement for pronunciation accuracy
+    enhanced_text = add_accent_free_markup(text, language_code)
+    
+    data = {
+        "text": enhanced_text,
+        "model_id": model_id,
+        "voice_settings": voice_settings,
+        "apply_text_normalization": "auto"
+    }
+    
+    start_time = time.time()
+    
+    try:
+        response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{selected_voice_id}",
+            json=data,
+            headers=headers,
+            timeout=10
+        )
+        
+        generation_time = time.time() - start_time
+        
+        if response.status_code == 200:
+            content = response.content
+            if len(content) < 100:
+                return None, generation_time
+                
+            logger.info(f"✅ ElevenLabs ({selected_speaker_name}) generated for {language_code} in {generation_time:.2f}s")
+            return BytesIO(content), generation_time
+        else:
+            logger.error(f"TTS API error: {response.status_code} - {response.text}")
+            return None, generation_time
+    
+    except Exception as e:
+        logger.error(f"ElevenLabs TTS error: {str(e)}")
+        return None, time.time() - start_time
+
+async def generate_speech_openai(text, language_code=None):
+    """Generate speech using OpenAI TTS with selected speaker"""
+    api_key = st.session_state.openai_api_key
+    if not api_key:
+        return None, 0
+    
+    # Get selected speaker configuration
+    selected_speaker_name = st.session_state.selected_speakers.get("openai", "Nova")
+    speaker_config = st.session_state.provider_voice_configs["openai"]["speakers"][selected_speaker_name]
+    
+    # Clean text for OpenAI TTS (remove language markers)
+    clean_text = re.sub(r'\[ur\]|\[en\]', '', text).strip()
+    
+    start_time = time.time()
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.openai.com/v1/audio/speech",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": speaker_config["model"],
+                    "input": clean_text,
+                    "voice": speaker_config["voice_id"],
+                    "response_format": "mp3",
+                    "speed": 0.9
+                },
+                timeout=20.0
+            )
+            
+            generation_time = time.time() - start_time
+            
+            if response.status_code == 200:
+                logger.info(f"✅ OpenAI TTS ({selected_speaker_name}) generated in {generation_time:.2f}s")
+                return BytesIO(response.content), generation_time
+            else:
+                logger.error(f"OpenAI TTS error: {response.status_code}")
+                return None, generation_time
+                
+    except Exception as e:
+        logger.error(f"OpenAI TTS error: {str(e)}")
+        return None, time.time() - start_time
+
+async def generate_speech_coqui(text, language_code=None):
+    """Generate speech using Coqui XTTS with selected speaker"""
+    api_key = st.session_state.coqui_api_key
+    if not api_key:
+        st.warning("Coqui API key not set. Please configure in sidebar.")
+        return None, 0
+    
+    # Get selected speaker configuration
+    selected_speaker_name = st.session_state.selected_speakers.get("coqui", "Multilingual_Sarah")
+    speaker_config = st.session_state.provider_voice_configs["coqui"]["speakers"][selected_speaker_name]
+    
+    # Clean text (remove language markers)
+    clean_text = re.sub(r'\[ur\]|\[en\]', '', text).strip()
+    
+    # Determine language for Coqui
+    coqui_language = "en"  # Default
+    if language_code == "ur":
+        coqui_language = "ur"
+    elif language_code == "en":
+        coqui_language = "en"
+    
+    start_time = time.time()
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{COQUI_API_URL}/synthesize",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "voice_id": speaker_config["voice_id"],
+                    "text": clean_text,
+                    "language": coqui_language,
+                    "model": speaker_config["model"],
+                    "speed": 1.0,
+                    "emotion": "neutral"
+                },
+                timeout=30.0
+            )
+            
+            generation_time = time.time() - start_time
+            
+            if response.status_code == 200:
+                logger.info(f"✅ Coqui XTTS ({selected_speaker_name}) generated in {generation_time:.2f}s")
+                st.session_state.performance_metrics["api_calls"]["coqui"] += 1
+                return BytesIO(response.content), generation_time
+            else:
+                logger.error(f"Coqui TTS error: {response.status_code}")
+                return None, generation_time
+                
+    except Exception as e:
+        logger.error(f"Coqui TTS error: {str(e)}")
+        return None, time.time() - start_time
+
+async def generate_speech_unified(text, language_code=None):
+    """Unified speech generation using selected provider"""
+    provider = st.session_state.tts_provider
+    
+    if provider == "elevenlabs":
+        return generate_speech(text, language_code)
+    elif provider == "openai":
+        return await generate_speech_openai(text, language_code)
+    elif provider == "coqui":
+        return await generate_speech_coqui(text, language_code)
+    else:
+        return generate_speech(text, language_code)  # Fallback
+
+def add_accent_free_markup(text, language_code):
+    """Add SSML markup for accent-free pronunciation - Urdu/English"""
+    if not language_code:
+        return text
+    
+    # Clean text first
+    clean_text = text.strip()
+    
+    # Add language-specific SSML for accent-free pronunciation
+    if language_code == "ur":
+        # Urdu pronunciation optimization
+        enhanced_text = f'<speak><lang xml:lang="ur-PK"><prosody rate="0.9">{clean_text}</prosody></lang></speak>'
+    elif language_code == "en":
+        # English pronunciation optimization  
+        enhanced_text = f'<speak><lang xml:lang="en-US"><prosody rate="0.95">{clean_text}</prosody></lang></speak>'
+    else:
+        enhanced_text = clean_text
+    
+    return enhanced_text
+
+# Enhanced multilingual processing for Urdu-English
+async def process_multilingual_text_seamless(text, detect_language=True):
+    """Process multilingual text with intelligent accent-free switching"""
+    
+    # Parse segments more intelligently
+    segments = parse_intelligent_segments(text)
+    
+    if len(segments) <= 1:
+        # Single segment - use unified generation
+        audio_data, generation_time = await generate_speech_unified(
+            segments[0]["text"] if segments else text, 
+            segments[0]["language"] if segments else None
+        )
+        
+        if audio_data:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+                # Save audio data to file
+                temp_file.write(audio_data.read())
+                return temp_file.name, generation_time
+        return None, 0
+    
+    # Multi-segment processing with accent-free blending
+    audio_segments = []
+    total_time = 0
+    
+    for i, segment in enumerate(segments):
+        if not segment["text"].strip():
+            continue
+            
+        # Generate with appropriate provider
+        audio_data, generation_time = await generate_speech_unified(
+            segment["text"], 
+            segment["language"]
+        )
+        
+        if audio_data:
+            audio_segment = AudioSegment.from_file(audio_data, format="mp3")
+            
+            # Normalize for consistent blending
+            normalized_segment = audio_segment.normalize()
+            audio_segments.append(normalized_segment)
+            total_time += generation_time
+    
+    if not audio_segments:
+        return None, 0
+    
+    # Blend segments with minimal crossfade for accent-free switching
+    combined_audio = audio_segments[0]
+    
+    for i in range(1, len(audio_segments)):
+        # Very short crossfade to maintain natural flow
+        combined_audio = combined_audio.append(audio_segments[i], crossfade=50)
+    
+    # Save final audio
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+        combined_audio.export(
+            temp_file.name, 
+            format="mp3", 
+            bitrate="128k",
+            parameters=["-ac", "1", "-ar", "22050"]
+        )
+        return temp_file.name, total_time
+
+def parse_intelligent_segments(text):
+    """Parse text into intelligent language segments for Urdu-English"""
+    segments = []
+    
+    # Split by language markers
+    parts = re.split(r'(\[[a-z]{2}\])', text)
+    
+    current_language = None
+    current_text = ""
+    
+    for part in parts:
+        if re.match(r'\[[a-z]{2}\]', part):
+            # Save previous segment
+            if current_text.strip():
+                segments.append({
+                    "text": current_text.strip(),
+                    "language": current_language or "ur"  # Default to Urdu
+                })
+            
+            # Set new language
+            current_language = part[1:-1]
+            current_text = ""
+        else:
+            current_text += part
+    
+    # Add final segment
+    if current_text.strip():
+        segments.append({
+            "text": current_text.strip(),
+            "language": current_language or "ur"
+        })
+    
+    return segments
+
+# ----------------------------------------------------------------------------------
+# END-TO-END PIPELINE - ENHANCED FOR URDU-ENGLISH PROCESSING
+# ----------------------------------------------------------------------------------
+
+async def process_voice_input_pronunciation_enhanced(audio_file):
+    """Enhanced voice processing focusing on pronunciation accuracy for Urdu-English"""
+    pipeline_start_time = time.time()
+    
+    try:
+        # Step 1: Enhanced Audio Preprocessing with 500% boost
+        st.session_state.message_queue.put("🔊 Amplifying audio for pronunciation clarity...")
+        
+        # Step 2: Pronunciation-Enhanced Transcription
+        st.session_state.message_queue.put("🎯 Analyzing Urdu-English pronunciation patterns...")
+        
+        transcription = await asyncio.wait_for(
+            transcribe_with_api(audio_file, st.session_state.openai_api_key),
+            timeout=30.0
+        )
+        
+        if not transcription or not transcription.get("text"):
+            st.session_state.message_queue.put("❌ No clear pronunciation detected")
+            return None, None, 0, 0, 0
+        
+        # Step 3: Pronunciation-Based Language Understanding
+        user_input = transcription["text"].strip()
+        
+        st.session_state.message_queue.put(f"📝 Transcribed: {user_input}")
+        
+        # Step 4: Generate Response
+        st.session_state.message_queue.put("🤖 Generating response...")
+        
+        llm_result = await generate_llm_response(user_input)
+        
+        if "error" in llm_result:
+            st.session_state.message_queue.put(f"❌ Response generation failed: {llm_result.get('error')}")
+            return user_input, None, transcription.get("latency", 0), 0, 0
+        
+        response_text = llm_result["response"]
+        st.session_state.message_queue.put(f"💬 Generated: {response_text}")
+        
+        # Step 5: High-Quality Voice Synthesis
+        st.session_state.message_queue.put("🎵 Generating accent-free speech...")
+        audio_path, tts_latency = await process_multilingual_text_seamless(response_text)
+        
+        # Calculate total latency
+        total_latency = time.time() - pipeline_start_time
+        st.session_state.performance_metrics["total_latency"].append(total_latency)
+        
+        st.session_state.message_queue.put(f"✅ Complete! ({total_latency:.2f}s)")
+        
+        return user_input, audio_path, transcription.get("latency", 0), llm_result.get("latency", 0), tts_latency
+        
+    except Exception as e:
+        logger.error(f"Enhanced processing error: {str(e)}")
+        st.session_state.message_queue.put(f"❌ Error: {str(e)}")
+        return None, None, 0, 0, 0
+
+async def process_text_input(text):
+    """Process text input through the LLM → TTS pipeline with language distribution control"""
+    pipeline_start_time = time.time()
+    
+    # Step 1: Generate response with LLM with language control
+    st.session_state.message_queue.put("Generating language tutor response...")
+    
+    # Set up custom prompt based on language preferences
+    response_language = st.session_state.response_language
+    language_distribution = st.session_state.language_distribution
+    
+    # Create prompt with custom instructions
+    if response_language == "both":
+        ur_percent = language_distribution["ur"]
+        en_percent = language_distribution["en"]
+        system_prompt = (
+            f"You are a multilingual AI language tutor. Respond with approximately {ur_percent}% Urdu and {en_percent}% English. "
+            f"Always use language markers [ur] and [en] to indicate language."
+        )
+    elif response_language in ["ur", "en"]:
+        system_prompt = f"You are a language tutor. Respond only in {response_language} with [{response_language}] markers."
+    else:
+        system_prompt = None
+    
+    # Generate the LLM response with appropriate system prompt
+    llm_result = await generate_llm_response(text, system_prompt)
+    
+    if "error" in llm_result:
+        st.session_state.message_queue.put(f"Error generating response: {llm_result.get('error')}")
+        return None, llm_result.get("latency", 0), 0
+    
+    response_text = llm_result["response"]
+    st.session_state.message_queue.put(f"Generated response: {response_text}")
+    
+    # Step 2: Text-to-Speech with accent isolation
+    st.session_state.message_queue.put("Generating speech with accent isolation...")
+    audio_path, tts_latency = await process_multilingual_text_seamless(response_text)
+    
+    # Calculate total latency
+    total_latency = time.time() - pipeline_start_time
+    st.session_state.performance_metrics["total_latency"].append(total_latency)
+    
+    # Update conversation history
+    st.session_state.conversation_history.append({
+        "timestamp": datetime.now().isoformat(),
+        "user_input": text,
+        "assistant_response": response_text,
+        "latency": {
+            "stt": 0,
+            "llm": llm_result.get("latency", 0),
+            "tts": tts_latency,
+            "total": total_latency
+        }
+    })
+    
+    st.session_state.message_queue.put(f"Complete pipeline executed in {total_latency:.2f} seconds")
+    
+    return audio_path, llm_result.get("latency", 0), tts_latency
+
 # ----------------------------------------------------------------------------------
 # UTILITY FUNCTIONS
 # ----------------------------------------------------------------------------------
 
 def display_audio(audio_path, autoplay=False):
-    """Display audio in Streamlit"""
-    if not audio_path or not os.path.exists(audio_path):
+    """Display audio in Streamlit with improved error handling"""
+    if not audio_path:
+        logger.error("No audio path provided")
+        return None
+        
+    if not os.path.exists(audio_path):
+        logger.error(f"Audio file not found: {audio_path}")
         return None
         
     try:
+        # Check if file is valid and has content
         file_size = os.path.getsize(audio_path)
         if file_size == 0:
+            logger.error(f"Audio file is empty: {audio_path}")
             return None
             
         with open(audio_path, "rb") as audio_file:
             audio_bytes = audio_file.read()
+            
+            # Use native Streamlit audio component
             st.audio(audio_bytes, format="audio/mp3", start_time=0)
+            
+            # Return audio bytes for download button
             return audio_bytes
     except Exception as e:
         logger.error(f"Error displaying audio: {str(e)}")
@@ -1098,6 +1585,7 @@ def calculate_average_latency(latency_list, recent_count=5):
     """Calculate average latency from most recent measurements"""
     if not latency_list:
         return 0
+        
     recent = latency_list[-min(recent_count, len(latency_list)):]
     return sum(recent) / len(recent)
 
@@ -1108,345 +1596,329 @@ def update_status():
         try:
             message = st.session_state.message_queue.get_nowait()
             status_text += message + "\n"
-            if hasattr(st.session_state, 'status_area'):
-                st.session_state.status_area.text_area("Processing Log", value=status_text, height=200)
+            st.session_state.status_area.text_area("Processing Log", value=status_text, height=200)
         except queue.Empty:
             break
 
-def get_urdu_english_demo_scenarios():
-    """Demo scenarios for Urdu/English tutoring"""
-    return {
-        "Vocabulary Request": (
-            "English mein 'pani' aur kuch basic words kya kehte hain?"
-        ),
-        "Grammar Question": (
-            "Past tense kaise banate hain English mein? Examples de sakte hain?"
-        ),
-        "Introduction Practice": (
-            "Main apna introduction English mein kaise karun? Sikhayein please."
-        ),
-        "Pronunciation Help": (
-            "Mujhe English 'th' sound mein problem hai. Help kar sakte hain?"
-        ),
-        "Daily Conversation": (
-            "Rozana ki English conversation ke liye phrases sikhayein."
-        ),
-        "Custom Input": ""
-    }
+def ensure_single_voice_consistency():
+    """Ensure all languages use the same voice ID"""
+    single_voice = st.session_state.elevenlabs_voice_id
+    st.session_state.language_voices["ur"] = single_voice
+    st.session_state.language_voices["en"] = single_voice
+    st.session_state.language_voices["default"] = single_voice
+    logger.info(f"Voice consistency enforced: {single_voice}")
 
 # ----------------------------------------------------------------------------------
-# MAIN APPLICATION
+# STREAMLIT UI - UPDATED FOR URDU-ENGLISH INTERFACE
 # ----------------------------------------------------------------------------------
 
 def main():
-    """Main application with Urdu/English and multiple TTS providers"""
+    """Main application entry point"""
+    # Page configuration - ONLY ONCE!
     st.set_page_config(
-        page_title="Multilingual AI Voice Tutor - Urdu/English",
+        page_title="Urdu-English AI Voice Tutor",
         page_icon="🎙️",
         layout="wide"
     )
     
-    st.title("🎯 Professional English Tutor for Urdu Speakers")
-    st.subheader("Accent-Free Voice AI Tutor with Multiple TTS Providers")
+    st.title("Urdu-English AI Voice Tutor")
+    st.subheader("Professional English Language Tutor for Urdu Speakers (A1-A2)")
     
-    # Status area
+    # Status area for progress updates
     if 'status_area' not in st.session_state:
         st.session_state.status_area = st.empty()
     
-    # Sidebar configuration
+    # Sidebar for configuration
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.header("Configuration")
         
-        # API Keys
-        st.subheader("🔑 API Keys")
+        # API keys
+        st.subheader("API Keys")
         
         elevenlabs_key = st.text_input(
             "ElevenLabs API Key", 
             value=st.session_state.elevenlabs_api_key,
             type="password",
-            help="For ElevenLabs TTS"
+            help="Required for text-to-speech"
         )
         
         openai_key = st.text_input(
             "OpenAI API Key", 
             value=st.session_state.openai_api_key,
             type="password",
-            help="For Whisper STT and ChatGPT + OpenAI TTS"
+            help="Required for speech recognition and language understanding"
         )
         
-        azure_speech_key = st.text_input(
-            "Azure Speech Key", 
-            value=st.session_state.azure_speech_key,
+        coqui_key = st.text_input(
+            "Coqui API Key", 
+            value=st.session_state.coqui_api_key,
             type="password",
-            help="For Azure Speech Service TTS"
+            help="Required for Coqui XTTS (optional)"
         )
         
-        azure_speech_region = st.text_input(
-            "Azure Speech Region", 
-            value=st.session_state.azure_speech_region,
-            help="e.g., eastus, westus2"
-        )
-        
-        if st.button("💾 Save API Keys"):
+        if st.button("Save API Keys"):
             st.session_state.elevenlabs_api_key = elevenlabs_key
             st.session_state.openai_api_key = openai_key
-            st.session_state.azure_speech_key = azure_speech_key
-            st.session_state.azure_speech_region = azure_speech_region
+            st.session_state.coqui_api_key = coqui_key
             st.session_state.api_keys_initialized = True
-            st.success("✅ API keys saved successfully!")
+            ensure_single_voice_consistency()
+            st.success("API keys saved successfully!")
         
-        # TTS Provider Selection
-        st.subheader("🎵 TTS Provider Selection")
-        
-        # Check which providers are available
-        providers_available = {}
-        providers_available["elevenlabs"] = bool(st.session_state.elevenlabs_api_key)
-        providers_available["openai"] = bool(st.session_state.openai_api_key)
-        providers_available["azure"] = bool(st.session_state.azure_speech_key and st.session_state.azure_speech_region)
-        
-        # Available providers list
-        available_options = []
-        provider_labels = {
-            "elevenlabs": "🔥 ElevenLabs (Best Quality)",
-            "openai": "⚡ OpenAI TTS (Fast & Good)",
-            "azure": "🏢 Azure Speech (Enterprise)"
-        }
-        
-        for provider, available in providers_available.items():
-            if available:
-                available_options.append(provider)
-        
-        if not available_options:
-            st.error("❌ No TTS providers configured! Please set API keys above.")
-            available_options = ["elevenlabs"]  # Default fallback
-        
-        # Provider selection
-        current_index = 0
-        if st.session_state.tts_provider in available_options:
-            current_index = available_options.index(st.session_state.tts_provider)
-        
-        selected_provider = st.selectbox(
-            "Choose TTS Provider",
-            options=available_options,
-            format_func=lambda x: provider_labels.get(x, x),
-            index=current_index,
-            help="Compare different TTS providers for accent-free speech"
-        )
-        
-        if selected_provider != st.session_state.tts_provider:
-            st.session_state.tts_provider = selected_provider
-            st.success(f"✅ Switched to {provider_labels[selected_provider]}")
-        
-        # Provider-specific settings
-        if selected_provider == "elevenlabs":
-            st.write("**ElevenLabs Settings:**")
-            if st.session_state.elevenlabs_api_key:
-                
-                # Fetch voices if not already done
-                if 'voices' not in st.session_state:
-                    try:
-                        headers = {"xi-api-key": st.session_state.elevenlabs_api_key}
-                        response = requests.get(f"{ELEVENLABS_API_URL}/voices", headers=headers, timeout=10)
-                        if response.status_code == 200:
-                            st.session_state.voices = response.json().get("voices", [])
-                        else:
-                            st.session_state.voices = []
-                    except:
-                        st.session_state.voices = []
-                
-                if 'voices' in st.session_state and st.session_state.voices:
-                    voice_options = {voice["name"]: voice["voice_id"] for voice in st.session_state.voices}
-                    current_voice = None
-                    for name, vid in voice_options.items():
-                        if vid == st.session_state.language_voices.get("default", ""):
-                            current_voice = name
-                            break
-                    
-                    selected_voice_name = st.selectbox(
-                        "Voice",
-                        options=list(voice_options.keys()),
-                        index=list(voice_options.keys()).index(current_voice) if current_voice else 0
-                    )
-                    
-                    if selected_voice_name:
-                        new_voice_id = voice_options[selected_voice_name]
-                        st.session_state.language_voices["ur"] = new_voice_id
-                        st.session_state.language_voices["en"] = new_voice_id
-                        st.session_state.language_voices["default"] = new_voice_id
-                        if 'elevenlabs_voice_id' not in st.session_state:
-                            st.session_state.elevenlabs_voice_id = new_voice_id
-                        else:
-                            st.session_state.elevenlabs_voice_id = new_voice_id
-                
-                st.success("✅ ElevenLabs configured")
-            else:
-                st.error("❌ ElevenLabs API key required")
-        
-        elif selected_provider == "openai":
-            st.write("**OpenAI TTS Settings:**")
-            if st.session_state.openai_api_key:
-                
-                voice_options = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-                current_voice = st.session_state.tts_configs["openai"]["voice"]
-                
-                selected_voice = st.selectbox(
-                    "Voice",
-                    options=voice_options,
-                    index=voice_options.index(current_voice) if current_voice in voice_options else 0
-                )
-                
-                if selected_voice != current_voice:
-                    st.session_state.tts_configs["openai"]["voice"] = selected_voice
-                
-                speed = st.slider(
-                    "Speech Speed",
-                    min_value=0.25,
-                    max_value=4.0,
-                    value=st.session_state.tts_configs["openai"]["speed"],
-                    step=0.1
-                )
-                
-                if speed != st.session_state.tts_configs["openai"]["speed"]:
-                    st.session_state.tts_configs["openai"]["speed"] = speed
-                
-                st.success("✅ OpenAI TTS configured")
-            else:
-                st.error("❌ OpenAI API key required")
-        
-        elif selected_provider == "azure":
-            st.write("**Azure Speech Settings:**")
-            if st.session_state.azure_speech_key and st.session_state.azure_speech_region:
-                
-                # Urdu voice options
-                ur_voices = ["ur-PK-AsadNeural", "ur-PK-UzmaNeural", "ur-IN-GulNeural", "ur-IN-SalmanNeural"]
-                current_ur_voice = st.session_state.tts_configs["azure"]["ur_voice"]
-                
-                selected_ur_voice = st.selectbox(
-                    "Urdu Voice",
-                    options=ur_voices,
-                    index=ur_voices.index(current_ur_voice) if current_ur_voice in ur_voices else 0
-                )
-                
-                # English voice options
-                en_voices = ["en-US-JennyNeural", "en-US-GuyNeural", "en-US-AriaNeural", "en-US-DavisNeural"]
-                current_en_voice = st.session_state.tts_configs["azure"]["en_voice"]
-                
-                selected_en_voice = st.selectbox(
-                    "English Voice",
-                    options=en_voices,
-                    index=en_voices.index(current_en_voice) if current_en_voice in en_voices else 0
-                )
-                
-                if selected_ur_voice != current_ur_voice:
-                    st.session_state.tts_configs["azure"]["ur_voice"] = selected_ur_voice
-                
-                if selected_en_voice != current_en_voice:
-                    st.session_state.tts_configs["azure"]["en_voice"] = selected_en_voice
-                
-                st.success("✅ Azure Speech configured")
-            else:
-                st.error("❌ Azure Speech key and region required")
-        
-        # TTS Provider Comparison
-        st.subheader("🔬 TTS Provider Comparison")
-        
-        comparison_data = {
-            "Provider": ["ElevenLabs", "OpenAI", "Azure"],
-            "Quality": ["🔥 Excellent", "⭐ Very Good", "🏢 Good"],
-            "Speed": ["⚡ Fast", "🚀 Very Fast", "🏃 Fast"],
-            "Languages": ["32+ Native", "50+ Good", "75+ Excellent"],
-            "Accent Control": ["🎯 Excellent", "✅ Good", "🎭 Excellent"]
-        }
-        
-        st.table(comparison_data)
-        
-        # Current Provider Status
-        st.info(f"""
-        **Currently Using:** {provider_labels.get(st.session_state.tts_provider, st.session_state.tts_provider)}
-        
-        **Accent-Free Settings:** ✅ ACTIVE
-        - Same voice/model for both languages
-        - Language-specific pronunciation
-        - Perfect volume normalization
-        """)
-        
-        # Tutor Mode
-        st.subheader("🎓 English Tutor Mode")
-        
-        response_language = st.radio(
-            "Response Language Mix",
-            options=["both", "ur", "en"],
-            format_func=lambda x: {
-                "both": "🎯 English Tutor (Urdu + English)", 
-                "ur": "اردو Only (Urdu Only)", 
-                "en": "English Only"
-            }[x],
-            index=0
-        )
-        
-        if response_language != st.session_state.response_language:
-            st.session_state.response_language = response_language
-            st.success(f"Tutor mode: {response_language}")
-        
-        # Language distribution
-        if response_language == "both":
-            st.subheader("📊 Language Balance")
+        # ACCENT-FREE VOICE CONFIGURATION
+        st.subheader("🎯 Single Voice Setup")
+
+        st.write("**Consistent Voice for Both Languages:**")
+        if 'voices' in st.session_state and st.session_state.voices:
+            voice_options = {voice["name"]: voice["voice_id"] for voice in st.session_state.voices}
+            current_voice = None
+            for name, vid in voice_options.items():
+                if vid == st.session_state.elevenlabs_voice_id:
+                    current_voice = name
+                    break
             
-            ur_percent = st.slider(
-                "Urdu % (explanations)", 
-                min_value=40, max_value=80, 
-                value=st.session_state.language_distribution["ur"],
-                help="Urdu for explanations and instructions"
+            selected_voice_name = st.selectbox(
+                "Select Voice (Used for ALL languages)", 
+                options=list(voice_options.keys()),
+                index=list(voice_options.keys()).index(current_voice) if current_voice else 0,
+                key="single_voice_select"
             )
             
-            en_percent = 100 - ur_percent
-            st.text(f"English %: {en_percent} (examples & terms)")
+            if selected_voice_name:
+                new_voice_id = voice_options[selected_voice_name]
+                st.session_state.elevenlabs_voice_id = new_voice_id
+                # Update all language voices to use the same voice
+                st.session_state.language_voices["ur"] = new_voice_id
+                st.session_state.language_voices["en"] = new_voice_id
+                st.session_state.language_voices["default"] = new_voice_id
+
+        # Voice consistency status
+        st.success(f"""
+        ✅ **Single Voice Configuration**
+        - Voice ID: {st.session_state.elevenlabs_voice_id[:8]}...
+        - Used for: ALL languages (Urdu + English)
+        - Model: Flash v2.5 (Multilingual accent-free)
+        """)
+        
+        # Language Response Options
+        st.subheader("Tutor Mode")
+ 
+        response_language = st.radio(
+            "Tutor Mode",
+            options=["both", "ur", "en"],
+            format_func=lambda x: {
+                "both": "English Tutor (Urdu + English)", 
+                "ur": "Urdu Only", 
+                "en": "English Only"
+            }[x]
+        )
+        if response_language != st.session_state.response_language:
+            st.session_state.response_language = response_language
+            st.success(f"Tutor Mode set to: {response_language}")
+        
+        # Language distribution (only shown when "both" is selected)
+        if response_language == "both":
+            st.subheader("Language Distribution")
             
+            # Urdu percentage slider
+            ur_percent = st.slider("Urdu %", min_value=0, max_value=100, value=st.session_state.language_distribution["ur"])
+            
+            # Calculate English percentage automatically
+            en_percent = 100 - ur_percent
+            
+            # Display English percentage
+            st.text(f"English %: {en_percent}")
+            
+            # Update language distribution if changed
             if ur_percent != st.session_state.language_distribution["ur"]:
                 st.session_state.language_distribution = {
                     "ur": ur_percent,
                     "en": en_percent
                 }
-                st.success(f"Updated: {ur_percent}% Urdu, {en_percent}% English")
+                st.success(f"Language distribution updated: {ur_percent}% Urdu, {en_percent}% English")
+        
+        # Speech recognition model
+        st.subheader("Speech Recognition")
+        
+        whisper_model = st.selectbox(
+            "Whisper Model",
+            options=["tiny", "base", "small", "medium", "large"],
+            index=["tiny", "base", "small", "medium", "large"].index(st.session_state.whisper_model) 
+            if st.session_state.whisper_model in ["tiny", "base", "small", "medium", "large"] 
+            else 1
+        )
+        
+        if whisper_model != st.session_state.whisper_model:
+            st.session_state.whisper_model = whisper_model
+            st.session_state.whisper_local_model = None
+            st.success(f"Changed Whisper model to {whisper_model}")
+        
+        # TTS Provider Selection - UPDATED WITH COQUI
+        st.subheader("🎵 TTS Provider")
+        
+        tts_provider = st.selectbox(
+            "Choose TTS Provider",
+            options=["elevenlabs", "openai", "coqui"],
+            format_func=lambda x: {
+                "elevenlabs": "ElevenLabs (Flash v2.5)",
+                "openai": "OpenAI TTS",
+                "coqui": "Coqui XTTS"
+            }[x],
+            index=["elevenlabs", "openai", "coqui"].index(st.session_state.tts_provider) if st.session_state.tts_provider in ["elevenlabs", "openai", "coqui"] else 0
+        )
+        
+        if tts_provider != st.session_state.tts_provider:
+            st.session_state.tts_provider = tts_provider
+            st.success(f"TTS Provider changed to: {tts_provider}")
+        
+        # Provider-specific configuration
+        if tts_provider == "coqui":
+            st.write("**Coqui XTTS Configuration:**")
+            if not st.session_state.coqui_api_key:
+                st.warning("⚠️ Coqui API Key required for Coqui XTTS")
+            else:
+                st.info("✅ Coqui XTTS configured for multilingual support")
+            
+        elif tts_provider == "openai":
+            st.info("✅ OpenAI TTS uses your existing OpenAI API key")
+        
+        elif tts_provider == "elevenlabs":
+            st.info("✅ ElevenLabs uses your existing ElevenLabs API key")
+            
+        # Speaker Selection per Provider
+        if tts_provider in st.session_state.provider_voice_configs:
+            st.write(f"**{tts_provider.title()} Speakers:**")
+            
+            speakers = st.session_state.provider_voice_configs[tts_provider]["speakers"]
+            current_speaker = st.session_state.selected_speakers.get(tts_provider, list(speakers.keys())[0])
+            
+            # Create speaker options with descriptions
+            speaker_options = {}
+            for name, config in speakers.items():
+                description = config.get("description", "Professional voice")
+                speaker_options[f"{name} - {description}"] = name
+            
+            selected_speaker_display = st.selectbox(
+                f"Choose {tts_provider.title()} Speaker",
+                options=list(speaker_options.keys()),
+                index=list(speaker_options.values()).index(current_speaker) if current_speaker in speaker_options.values() else 0,
+                key=f"{tts_provider}_speaker_select"
+            )
+            
+            selected_speaker = speaker_options[selected_speaker_display]
+            
+            if selected_speaker != st.session_state.selected_speakers.get(tts_provider):
+                st.session_state.selected_speakers[tts_provider] = selected_speaker
+                
+                # Update ElevenLabs voice ID if ElevenLabs is selected
+                if tts_provider == "elevenlabs":
+                    new_voice_id = speakers[selected_speaker]["voice_id"]
+                    st.session_state.elevenlabs_voice_id = new_voice_id
+                
+                st.success(f"✅ Speaker changed to: {selected_speaker}")
+                
+            # Show speaker details
+            speaker_config = speakers[selected_speaker]
+            st.info(f"""
+            **{selected_speaker}**: {speaker_config['description']}
+            - Voice ID: {speaker_config['voice_id'][:12]}...
+            - Model: {speaker_config['model']}
+            """)
+
+        # Voice Testing Section
+        st.write("**🎵 Test Current Speaker:**")
+        test_text = st.text_input(
+            "Test Text", 
+            value="Hello, this is a test. Assalam alaikum, ye test hai.",
+            key="speaker_test_text"
+        )
+
+        if st.button("🔊 Test Speaker"):
+            if test_text.strip():
+                with st.spinner(f"Testing {tts_provider} speaker..."):
+                    try:
+                        # Generate test audio
+                        if tts_provider == "elevenlabs":
+                            audio_data, latency = generate_speech(test_text)
+                        elif tts_provider == "openai":
+                            audio_data, latency = asyncio.run(generate_speech_openai(test_text))
+                        elif tts_provider == "coqui":
+                            audio_data, latency = asyncio.run(generate_speech_coqui(test_text))
+                        
+                        if audio_data:
+                            st.audio(audio_data.read(), format="audio/mp3")
+                            st.success(f"✅ Test completed in {latency:.2f}s")
+                        else:
+                            st.error("❌ Test failed - check API keys")
+                            
+                    except Exception as e:
+                        st.error(f"Test error: {str(e)}")
         
         # Performance metrics
-        st.subheader("📊 Performance Metrics")
+        st.header("Performance")
         
         avg_stt = calculate_average_latency(st.session_state.performance_metrics["stt_latency"])
         avg_llm = calculate_average_latency(st.session_state.performance_metrics["llm_latency"])
         avg_tts = calculate_average_latency(st.session_state.performance_metrics["tts_latency"])
         avg_total = calculate_average_latency(st.session_state.performance_metrics["total_latency"])
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("STT Latency", f"{avg_stt:.2f}s")
-            st.metric("LLM Latency", f"{avg_llm:.2f}s")
-        with col2:
-            st.metric("TTS Latency", f"{avg_tts:.2f}s")
-            st.metric("Total Latency", f"{avg_total:.2f}s")
+        st.metric("Avg. STT Latency", f"{avg_stt:.2f}s")
+        st.metric("Avg. LLM Latency", f"{avg_llm:.2f}s")
+        st.metric("Avg. TTS Latency", f"{avg_tts:.2f}s")
+        st.metric("Avg. Total Latency", f"{avg_total:.2f}s")
         
-        # API usage
-        st.subheader("📈 API Usage")
+        # API calls
+        st.subheader("API Usage")
+        st.text(f"Whisper API calls: {st.session_state.performance_metrics['api_calls']['whisper']}")
+        st.text(f"OpenAI API calls: {st.session_state.performance_metrics['api_calls']['openai']}")
+        st.text(f"ElevenLabs API calls: {st.session_state.performance_metrics['api_calls']['elevenlabs']}")
+        st.text(f"Coqui API calls: {st.session_state.performance_metrics['api_calls']['coqui']}")
         
-        metrics = st.session_state.performance_metrics['api_calls']
-        st.text(f"Whisper calls: {metrics['whisper']}")
-        st.text(f"OpenAI calls: {metrics['openai']}")
-        st.text(f"ElevenLabs calls: {metrics['elevenlabs']}")
-        st.text(f"Azure calls: {metrics['azure']}")
+        # Accent improvement explanation
+        st.header("Accent Improvement")
+        st.info("""
+        This system includes optimizations to eliminate accent interference:
+        
+        1. Language-specific voice settings for Urdu-English
+        2. Micro-pauses between language switches
+        3. Voice context reset when switching languages
+        4. Phonetic optimization for both languages
+        
+        These improvements ensure Urdu sounds truly Urdu and English sounds truly English.
+        """)
     
-    # Main interface
+    # Main interaction area
     col1, col2 = st.columns([2, 3])
     
     with col1:
-        st.header("📝 Input")
+        st.header("Input")
         
+        # Input type selection
         input_type = st.radio("Select Input Type", ["Text", "Voice"], horizontal=True)
         
         if input_type == "Text":
+            # Text input
             st.subheader("Text Input")
-            st.write("Use [ur] for Urdu and [en] for English text.")
+            st.write("Use [ur] to mark Urdu text and [en] to mark English text.")
             
-            demo_scenarios = get_urdu_english_demo_scenarios()
+            # Demo preset examples - UPDATED FOR URDU-ENGLISH
+            demo_scenarios = {
+                "Vocabulary Request": (
+                    "Ap mujhe bata sakte hain ke paani aur kuch basic words English mein kya kehte hain?"
+                ),
+                "Grammar Question": (
+                    "English mein past tense kaise banate hain? Kuch examples de sakte hain?"
+                ),
+                "Practice Conversation": (
+                    "Main English mein apna introduction karna seekhna chahta hun. Kaise karu?"
+                ),
+                "Pronunciation Help": (
+                    "Mujhe English ke 'th' sound ka pronunciation seekhna hai. Madad kar sakte hain?"
+                ),
+                "Daily Expressions": (
+                    "Mujhe rozana istemal hone wale English phrases sikhayiye."
+                ),
+                "Custom Input": ""
+            }
             
             selected_scenario = st.selectbox(
                 "Demo Examples", 
@@ -1459,66 +1931,77 @@ def main():
                 height=150
             )
             
-            text_process_button = st.button("🚀 Process Text", type="primary")
+            text_process_button = st.button("Process Text", type="primary")
             
             if text_process_button and text_input:
-                with st.spinner(f"Processing with {st.session_state.tts_provider.upper()}..."):
-                    audio_path, llm_latency, tts_latency = asyncio.run(process_text_input_enhanced(text_input))
+                with st.spinner("Processing text input..."):
+                    # Process the text input
+                    audio_path, llm_latency, tts_latency = asyncio.run(process_text_input(text_input))
                     
+                    # Store for display in the output section
                     st.session_state.last_text_input = text_input
                     st.session_state.last_audio_output = audio_path
                     
+                    # Show latency metrics
                     total_latency = llm_latency + tts_latency
-                    st.success(f"✅ Processed with {st.session_state.tts_provider.upper()} in {total_latency:.2f}s")
+                    st.success(f"Text processed in {total_latency:.2f} seconds")
         
         else:
-            # Voice input
-            st.subheader("🎤 Voice Recording")
+            # Voice input - HTML5 AUDIO RECORDER
+            st.subheader("🎤 Professional Voice Recording")
             
+            # Check if API keys are set
             keys_set = (
-                st.session_state.openai_api_key and 
-                (st.session_state.elevenlabs_api_key or 
-                 st.session_state.openai_api_key or 
-                 (st.session_state.azure_speech_key and st.session_state.azure_speech_region))
+                st.session_state.elevenlabs_api_key and 
+                st.session_state.openai_api_key
             )
-            
+
             if not keys_set:
-                st.warning("⚠️ Please set required API keys in the sidebar first")
+                st.warning("Please set both API keys in the sidebar first")
             else:
-                st.write(f"🎯 **Recording with {provider_labels.get(st.session_state.tts_provider)} TTS**")
+                st.write("🎯 **HTML5 Audio Recording** - Reliable Railway Deployment")
                 
+                # Create the HTML5 audio recorder component
                 create_audio_recorder_component()
-                
+
                 st.markdown("---")
                 st.write("**🔄 AUTOMATIC PROCESSING:**")
                 
+                # Reliable upload processing
                 uploaded_audio = st.file_uploader(
                     "📥 Upload Your Downloaded Recording Here", 
                     type=['wav', 'mp3', 'webm', 'ogg'],
                     key="main_upload",
-                    help="After recording above, download and upload here for processing"
+                    help="After recording above, download the file and upload it here for automatic processing"
                 )
-                
+
                 if uploaded_audio is not None:
-                    with st.spinner(f"🔄 **PROCESSING WITH {st.session_state.tts_provider.upper()}...**"):
+                    # IMMEDIATE processing when file is uploaded
+                    with st.spinner("🔄 **PROCESSING YOUR RECORDING...**"):
                         try:
+                            # Save uploaded file
                             temp_path = tempfile.mktemp(suffix=".wav")
                             with open(temp_path, "wb") as f:
                                 f.write(uploaded_audio.read())
                             
+                            # Apply amplification and process through the full pipeline
                             amplified_path = amplify_recorded_audio(temp_path)
                             
-                            text, audio_output_path, stt_latency, llm_latency, tts_latency = asyncio.run(process_voice_input_accent_free(amplified_path))
+                            # Process with enhanced pipeline
+                            text, audio_output_path, stt_latency, llm_latency, tts_latency = asyncio.run(process_voice_input_pronunciation_enhanced(amplified_path))
                             
+                            # Store results
                             if text:
                                 st.session_state.last_text_input = text
                             if audio_output_path:
                                 st.session_state.last_audio_output = audio_output_path
                             
+                            # Show results
                             total_latency = stt_latency + llm_latency + tts_latency
-                            st.success(f"✅ **PROCESSING COMPLETE WITH {st.session_state.tts_provider.upper()}!** ({total_latency:.2f}s)")
+                            st.success(f"✅ **PROCESSING COMPLETE!** ({total_latency:.2f}s)")
                             st.balloons()
                             
+                            # Clean up
                             if os.path.exists(temp_path):
                                 os.unlink(temp_path)
                             if amplified_path != temp_path and os.path.exists(amplified_path):
@@ -1526,24 +2009,25 @@ def main():
                                 
                         except Exception as e:
                             st.error(f"Processing error: {str(e)}")
-                
+
+                # Enhanced instructions
                 st.success("""
                 🎯 **SIMPLE WORKFLOW:**
                 1. Click "🔴 START RECORDING" above
                 2. Speak clearly in Urdu or English  
                 3. Click "⏹️ STOP RECORDING" when done
-                4. **DOWNLOAD** the file automatically
-                5. **UPLOAD** it above - processing starts immediately!
-                
-                **⚡ Test different TTS providers in the sidebar!**
+                4. **DOWNLOAD** the file that appears automatically
+                5. **UPLOAD** it in the section above - processing starts immediately!
+
+                **⚡ Total time: Record → Download → Upload → Get Results!**
                 """)
     
     with col2:
-        st.header("🎵 Output")
+        st.header("Output")
         
         # Transcribed text
         if 'last_text_input' in st.session_state and st.session_state.last_text_input:
-            st.subheader("📝 Transcribed/Input Text")
+            st.subheader("Transcribed/Input Text")
             st.text_area(
                 "Text with language markers",
                 value=st.session_state.last_text_input,
@@ -1552,55 +2036,55 @@ def main():
             )
         
         # Generated response
-        if st.session_state.conversation_history:
+        if 'conversation_history' in st.session_state and st.session_state.conversation_history:
             last_exchange = st.session_state.conversation_history[-1]
             
             if 'assistant_response' in last_exchange:
-                st.subheader("🤖 AI Tutor Response")
+                st.subheader("AI Tutor Response")
                 st.text_area(
                     "Response text",
                     value=last_exchange['assistant_response'],
                     height=150,
                     disabled=True
                 )
-                
-                # Show which TTS provider was used
-                provider_used = last_exchange.get('tts_provider', 'unknown')
-                st.info(f"🎵 Generated with: {provider_labels.get(provider_used, provider_used)}")
         
         # Generated audio
         if 'last_audio_output' in st.session_state and st.session_state.last_audio_output:
-            st.subheader("🔊 Generated Speech")
+            st.subheader("Generated Speech")
             
+            # Display audio with player
             audio_bytes = display_audio(st.session_state.last_audio_output, autoplay=True)
             
             if audio_bytes:
+                # Download button
                 st.download_button(
-                    label="📥 Download Audio",
+                    label="Download Audio",
                     data=audio_bytes,
-                    file_name=f"tutor_response_{st.session_state.tts_provider}.mp3",
+                    file_name="urdu_english_tutor_response.mp3",
                     mime="audio/mp3"
                 )
     
     # Conversation history
     if st.session_state.conversation_history:
-        st.header("💬 Conversation History")
+        st.header("Conversation History")
         
-        for i, exchange in enumerate(st.session_state.conversation_history[-3:]):
-            with st.expander(f"Exchange {i+1} - {exchange.get('timestamp', 'Unknown')[:19]} - {provider_labels.get(exchange.get('tts_provider', 'unknown'), 'Unknown TTS')}"):
+        for i, exchange in enumerate(st.session_state.conversation_history[-5:]):  # Show last 5 exchanges
+            with st.expander(f"Exchange {i+1} - {exchange.get('timestamp', 'Unknown time')[:19]}"):
                 st.markdown("**User:**")
                 st.text(exchange.get('user_input', 'No input'))
                 
                 st.markdown("**AI Tutor:**")
                 st.text(exchange.get('assistant_response', 'No response'))
                 
+                # Latency info
                 latency = exchange.get('latency', {})
-                provider = exchange.get('tts_provider', 'unknown')
-                st.text(f"TTS Provider: {provider.upper()} | STT: {latency.get('stt', 0):.2f}s | LLM: {latency.get('llm', 0):.2f}s | TTS: {latency.get('tts', 0):.2f}s | Total: {latency.get('total', 0):.2f}s")
+                st.text(f"STT: {latency.get('stt', 0):.2f}s | LLM: {latency.get('llm', 0):.2f}s | TTS: {latency.get('tts', 0):.2f}s | Total: {latency.get('total', 0):.2f}s")
     
     # Status area
-    st.header("📊 Status")
+    st.header("Status")
     st.session_state.status_area = st.empty()
+    
+    # Update status from queue
     update_status()
 
 if __name__ == "__main__":
