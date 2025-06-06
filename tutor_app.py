@@ -88,7 +88,7 @@ if 'voice_settings' not in st.session_state:
 
 # TTS Provider Configuration
 if 'tts_provider' not in st.session_state:
-    st.session_state.tts_provider = "elevenlabs"  # Default
+    st.session_state.tts_provider = "elevenlabs_flash"  # Default
 
 if 'provider_voice_configs' not in st.session_state:
     st.session_state.provider_voice_configs = {
@@ -939,8 +939,10 @@ def generate_speech(text, language_code=None, voice_id=None):
         return None, 0
     
     # Get selected speaker configuration
-    selected_speaker_name = st.session_state.selected_speakers.get("elevenlabs", "Rachel")
-    speaker_config = st.session_state.provider_voice_configs["elevenlabs"]["speakers"][selected_speaker_name]
+    selected_speaker_name = st.session_state.selected_speakers.get(provider, "Rachel")
+    provider = st.session_state.tts_provider
+    selected_speaker_name = st.session_state.selected_speakers.get(provider, "Rachel")
+    speaker_config = st.session_state.provider_voice_configs[provider]["speakers"][selected_speaker_name]
     selected_voice_id = voice_id or speaker_config["voice_id"]
     
     logger.info(f"Using ElevenLabs speaker: {selected_speaker_name} ({selected_voice_id})")
@@ -1523,19 +1525,28 @@ def main():
             if test_text.strip():
                 with st.spinner(f"Testing {tts_provider} speaker..."):
                     try:
-                        # Generate test audio
-                        if tts_provider == "elevenlabs":
+                        # Initialize variables
+                        audio_data = None
+                        latency = 0
+                        
+                        # Generate test audio - FIXED for new provider names
+                        if tts_provider in ["elevenlabs_flash", "elevenlabs_multilingual"]:
                             audio_data, latency = generate_speech(test_text)
                         elif tts_provider == "openai":
-                            audio_data, latency = asyncio.run(generate_speech_openai(test_text))                        
+                            audio_data, latency = asyncio.run(generate_speech_openai(test_text))
+                        else:
+                            # Fallback to ElevenLabs
+                            audio_data, latency = generate_speech(test_text)
+                                
                         if audio_data:
                             st.audio(audio_data.read(), format="audio/mp3")
                             st.success(f"✅ Test completed in {latency:.2f}s")
                         else:
-                            st.error("❌ Test failed - check API keys")
+                            st.error("❌ Test failed - check API keys or audio generation")
                             
                     except Exception as e:
                         st.error(f"Test error: {str(e)}")
+                        logger.error(f"Test speaker error: {str(e)}")
         
         # Performance metrics
         st.header("Performance")
