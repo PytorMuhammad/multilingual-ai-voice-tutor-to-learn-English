@@ -562,10 +562,10 @@ async def transcribe_with_api(audio_file, api_key):
             # ENHANCED: Pronunciation-focused settings for Urdu/English
             data = {
                 "model": "whisper-1",
-                "response_format": "verbose_json",
-                "temperature": "0.0",  # LOWEST temperature for consistent pronunciation
-                "language": None,  # Let Whisper auto-detect between ur/en
-                "prompt": "This audio contains Urdu and English speech. Focus on accurate pronunciation and phonetic understanding. Common Urdu words: assalam alaikum, shukriya, meherbani, acha. Common English words: hello, thank you, please, good."  # Pronunciation hints
+                "response_format": "text",  # FASTER: Simple text response
+                "temperature": "0.0",
+                "language": None,
+                "prompt": "Urdu English mix"  # SHORTER: Faster processing
             }
             
             # Send the request with pronunciation-enhanced settings
@@ -708,41 +708,16 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         response_language = st.session_state.response_language
         
         if response_language == "both":
-            system_content = """🎓 WORD-LEVEL LANGUAGE TAGGING EXPERT
-
-            🚨 ABSOLUTE REQUIREMENT: PERFECT WORD-LEVEL TAGGING
-
-            You are an English tutor for Urdu speakers. CRITICAL: Every single word must be tagged with its language.
-
-            ❌ NEVER DO THIS (BLOCK TAGGING):
-            "[ur] Complete Urdu sentence [en] Complete English sentence"
-
-            ✅ ALWAYS DO THIS (WORD-LEVEL TAGGING):
-            "[ur] Urdu ky alFaz [en] English words [ur] mein achy se mix krny hein [en] Understand"
-
-            🔥 MANDATORY EXAMPLES:
-
-            VOCABULARY TEACHING:
-            User: "Water English mein kya kehte hain?"
-            You: "[ur] Paani [ur] ko [ur] English [ur] mein [en] Water [ur] kehte [ur] hain"
-
-            WORD LISTS:
-            "[ur] Basic [ur] words:
-            [ur] 1. [en] House [ur] - [ur] ghar
-            [ur] 2. [en] Car [ur] - [ur] gaari  
-            [ur] 3. [en] Book [ur] - [ur] kitab"
-
-            GRAMMAR EXPLANATION:
-            "[ur] Past [ur] tense [ur] banane [ur] ke [ur] liye [en] verb [ur] ke [ur] saath [en] -ed [ur] lagaate [ur] hain"
-
-            🎯 RULES:
-            1. Tag EVERY word individually
-            2. Switch languages within sentences, not between sentences
-            3. Use [ur] for all Urdu words
-            4. Use [en] for all English words
-            5. NEVER have more than 3 words in same tag without switching
-
-            This is CRITICAL for accent-free speech generation. Perfect tagging = No accent bleeding."""
+            system_content = """🎯 BILINGUAL TUTOR - NATURAL CONVERSATION FLOW
+        listen careFully you're an ai tutor to teach enlish to urdu users which will interact with you listen here 
+        when you generate response you have to take care you never add any urdu word into eng tag & vice versa
+        like [eng] tag covers area untill [ur] tags never comes okah like that line = 
+        [eng] I know how to speak eng [ur] yaqeenan mein jnta ho keh kese english bolty hein
+        Understand
+        dekho [eng] tag covers untill [ur] never comes & check I never add any urdu word within eng tag & vice versa take care oF this too 
+        keep this in your mind you have to help Urdu users to speak english okah so speak urdu as native & english as a learning For interacting user
+        Understand
+        """
         elif response_language == "ur":
             system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
         elif response_language == "en":
@@ -928,6 +903,51 @@ def get_voices():
     except Exception as e:
         st.error(f"Error fetching voices: {e}")
         return []
+def preprocess_text_for_clean_speech(text, language_code=None):
+    """Preprocess text to eliminate random voice artifacts"""
+    
+    # Remove problematic patterns that cause voice issues
+    cleaned_text = text.strip()
+    
+    # Remove language tags for cleaner speech
+    cleaned_text = re.sub(r'\[ur\]|\[en\]', '', cleaned_text)
+    
+    # Remove multiple spaces
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+    
+    # Remove problematic punctuation that causes artifacts
+    cleaned_text = re.sub(r'[^\w\s\.\,\!\?\-\:]', '', cleaned_text)
+    
+    # Ensure proper sentence endings
+    if cleaned_text and not cleaned_text.endswith(('.', '!', '?')):
+        cleaned_text += '.'
+    
+    # Handle empty or very short text
+    if len(cleaned_text.strip()) < 2:
+        return None
+    
+    # Language-specific cleaning
+    if language_code == "ur":
+        # Ensure Urdu-specific character handling
+        cleaned_text = clean_urdu_text(cleaned_text)
+    elif language_code == "en":
+        # Ensure English-specific character handling  
+        cleaned_text = clean_english_text(cleaned_text)
+    
+    return cleaned_text
+
+def clean_urdu_text(text):
+    """Clean Urdu text for better pronunciation"""
+    # Handle common Urdu pronunciation issues
+    text = re.sub(r'\bke\b', 'kay', text)  # Improve pronunciation
+    text = re.sub(r'\bko\b', 'koo', text)  # Improve pronunciation
+    return text
+
+def clean_english_text(text):
+    """Clean English text for better pronunciation"""
+    # Handle common English pronunciation issues
+    text = re.sub(r'\bthe\b', 'thee', text, flags=re.IGNORECASE)  # Clear pronunciation
+    return text
 
 def generate_speech(text, language_code=None, voice_id=None):
     """Generate speech using ElevenLabs with selected speaker"""
@@ -969,14 +989,21 @@ def generate_speech(text, language_code=None, voice_id=None):
     else:
         voice_settings = st.session_state.voice_settings["default"]
     
+    # CRITICAL: Preprocess text to eliminate random voice artifacts
+    preprocessed_text = preprocess_text_for_clean_speech(text, language_code)
+    if not preprocessed_text:
+        logger.error("Text preprocessing failed - empty result")
+        return None, 0
+
     # SSML enhancement for pronunciation accuracy
-    enhanced_text = add_accent_free_markup(text, language_code)
-    
+    enhanced_text = add_accent_free_markup(preprocessed_text, language_code)
+
     data = {
         "text": enhanced_text,
         "model_id": model_id,
         "voice_settings": voice_settings,
-        "apply_text_normalization": "auto"
+        "apply_text_normalization": "auto",
+        "optimize_streaming_latency": 3  # Optimize for speed
     }
     
     start_time = time.time()
@@ -1039,66 +1066,118 @@ def add_accent_free_markup(text, language_code):
 
 # Enhanced multilingual processing for Urdu-English
 async def process_multilingual_text_seamless(text, detect_language=True):
-    """Process multilingual text with intelligent accent-free switching"""
+    """OPTIMIZED: Fast processing with accent-free switching"""
+    start_time = time.time()
     
-    # Parse segments more intelligently
-    segments = parse_intelligent_segments(text)
+    # Clean and prepare text
+    cleaned_text = clean_text_for_tts(text)
+    if not cleaned_text.strip():
+        return None, 0
     
-    if len(segments) <= 1:
-        # Single segment - use unified generation
-        audio_data, generation_time = await generate_speech_unified(
-            segments[0]["text"] if segments else text, 
-            segments[0]["language"] if segments else None
+    # Quick language detection - if mostly one language, use single call
+    segments = parse_intelligent_segments(cleaned_text)
+    
+    if len(segments) <= 1 or is_single_language_dominant(segments):
+        # FAST PATH: Single API call for speed
+        primary_lang = segments[0]["language"] if segments else detect_primary_language(cleaned_text)
+        
+        audio_data, generation_time = generate_speech(
+            cleaned_text.replace('[ur]', '').replace('[en]', ''), 
+            primary_lang
         )
         
         if audio_data:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-                # Save audio data to file
                 temp_file.write(audio_data.read())
                 return temp_file.name, generation_time
         return None, 0
     
-    # Multi-segment processing with accent-free blending
+    # PARALLEL PROCESSING: Generate segments concurrently for speed
+    tasks = []
+    for segment in segments:
+        if segment["text"].strip():
+            task = asyncio.create_task(
+                generate_speech_async(segment["text"], segment["language"])
+            )
+            tasks.append((task, segment))
+    
+    # Wait for all generations to complete
     audio_segments = []
     total_time = 0
     
-    for i, segment in enumerate(segments):
-        if not segment["text"].strip():
+    for task, segment in tasks:
+        try:
+            audio_data, gen_time = await asyncio.wait_for(task, timeout=5.0)
+            if audio_data:
+                audio_segments.append(audio_data)
+                total_time += gen_time
+        except asyncio.TimeoutError:
+            logger.warning(f"TTS timeout for segment: {segment['text'][:20]}...")
             continue
-            
-        # Generate with appropriate provider
-        audio_data, generation_time = await generate_speech_unified(
-            segment["text"], 
-            segment["language"]
-        )
-        
-        if audio_data:
-            audio_segment = AudioSegment.from_file(audio_data, format="mp3")
-            
-            # Normalize for consistent blending
-            normalized_segment = audio_segment.normalize()
-            audio_segments.append(normalized_segment)
-            total_time += generation_time
     
     if not audio_segments:
         return None, 0
     
-    # Blend segments with minimal crossfade for accent-free switching
-    combined_audio = audio_segments[0]
+    # FAST CONCATENATION: Minimal processing
+    if len(audio_segments) == 1:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+            temp_file.write(audio_segments[0].read())
+            return temp_file.name, total_time
     
-    for i in range(1, len(audio_segments)):
-        # Very short crossfade to maintain natural flow
-        combined_audio = combined_audio.append(audio_segments[i], crossfade=50)
+    # Quick merge without complex audio processing
+    combined_audio = merge_audio_segments_fast(audio_segments)
     
-    # Save final audio
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-        combined_audio.export(
-            temp_file.name, 
-            format="mp3", 
-            bitrate="128k",
-            parameters=["-ac", "1", "-ar", "22050"]
-        )
+        temp_file.write(combined_audio)
         return temp_file.name, total_time
+
+def clean_text_for_tts(text):
+    """Remove problematic characters that cause voice issues"""
+    # Remove multiple tags
+    text = re.sub(r'\[ur\]\s*\[ur\]', '[ur]', text)
+    text = re.sub(r'\[en\]\s*\[en\]', '[en]', text)
+    
+    # Remove empty tags
+    text = re.sub(r'\[ur\]\s*\[en\]', '', text)
+    text = re.sub(r'\[en\]\s*\[ur\]', '', text)
+    
+    # Clean whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+def is_single_language_dominant(segments):
+    """Check if one language dominates (>80%) for single API call"""
+    if not segments:
+        return True
+    
+    ur_chars = sum(len(s["text"]) for s in segments if s["language"] == "ur")
+    en_chars = sum(len(s["text"]) for s in segments if s["language"] == "en")
+    total_chars = ur_chars + en_chars
+    
+    if total_chars == 0:
+        return True
+    
+    return max(ur_chars, en_chars) / total_chars > 0.8
+
+async def generate_speech_async(text, language):
+    """Async wrapper for speech generation"""
+    return generate_speech(text, language)
+
+def merge_audio_segments_fast(audio_segments):
+    """Fast audio merging without complex processing"""
+    try:
+        # Simple concatenation
+        combined = b''
+        for audio_data in audio_segments:
+            if hasattr(audio_data, 'read'):
+                combined += audio_data.read()
+            else:
+                combined += audio_data
+        return combined
+    except:
+        # Fallback to first segment if merging fails
+        return audio_segments[0].read() if audio_segments else b''
 
 def parse_intelligent_segments(text):
     """Parse text into intelligent language segments for Urdu-English"""
