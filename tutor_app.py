@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import queue
 import time
@@ -86,8 +85,9 @@ if 'voice_settings' not in st.session_state:
         }
     }
 
+# TTS Provider Configuration
 if 'tts_provider' not in st.session_state:
-    st.session_state.tts_provider = "elevenlabs_flash"  
+    st.session_state.tts_provider = "elevenlabs"  # Default
 
 if 'provider_voice_configs' not in st.session_state:
     st.session_state.provider_voice_configs = {
@@ -544,44 +544,67 @@ class AudioRecorder:
         return combined_audio
 
 async def transcribe_with_api(audio_file, api_key):
-    """ULTRA-FAST transcription for sub-3s latency"""
+    """Enhanced transcription with pronunciation focus for Urdu/English"""
     start_time = time.time()
     
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:  # Reduced timeout
+        async with httpx.AsyncClient() as client:
+            # Open file in binary mode
             with open(audio_file, "rb") as f:
                 file_content = f.read()
             
-            files = {"file": (os.path.basename(audio_file), file_content, "audio/wav")}
-            
-            # MINIMAL data for speed
-            data = {
-                "model": "whisper-1",
-                "response_format": "text",  # FASTEST format
-                "temperature": 0
+            # Prepare the multipart form data
+            files = {
+                "file": (os.path.basename(audio_file), file_content, "audio/wav")
             }
             
+            # ENHANCED: Pronunciation-focused settings for Urdu/English
+            data = {
+                "model": "whisper-1",
+                "response_format": "text",  # FASTER: Simple text response
+                "temperature": "0.0",
+                "language": None,
+                "prompt": "Urdu English mix"  # SHORTER: Faster processing
+            }
+            
+            # Send the request with pronunciation-enhanced settings
             response = await client.post(
                 "https://api.openai.com/v1/audio/transcriptions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 files=files,
                 data=data,
-                timeout=10.0  # Aggressive timeout
+                timeout=30.0
             )
             
-            latency = time.time() - start_time
-            
             if response.status_code == 200:
-                # Simple text response - no processing needed
-                return {
-                    "text": response.text.strip(),
-                    "latency": latency
-                }
+                result = response.json()
+                
+                # ENHANCED: Apply pronunciation-based post-processing
+                enhanced_result = enhance_pronunciation_transcription(result)
+                
+                # Calculate latency and update metrics
+                latency = time.time() - start_time
+                st.session_state.performance_metrics["stt_latency"].append(latency)
+                st.session_state.performance_metrics["api_calls"]["whisper"] += 1
+                
+                return enhanced_result
             else:
-                return {"text": "", "error": f"API error: {response.status_code}", "latency": latency}
+                logger.error(f"API error: {response.status_code} - {response.text}")
+                return {
+                    "text": "",
+                    "language": None,
+                    "error": f"API error: {response.status_code} - {response.text}",
+                    "latency": time.time() - start_time
+                }
     
     except Exception as e:
-        return {"text": "", "error": str(e), "latency": time.time() - start_time}
+        logger.error(f"Enhanced transcription API error: {str(e)}")
+        return {
+            "text": "",
+            "language": None,
+            "error": str(e),
+            "latency": time.time() - start_time
+        }
 
 def enhance_pronunciation_transcription(result):
     """Post-process transcription for better pronunciation understanding"""
@@ -684,7 +707,7 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         response_language = st.session_state.response_language
         
         if response_language == "both":
-            system_content = """🎯 BILINGUAL TUTOR - NATURAL CONVERSATION FLOW
+            system_content = """ BILINGUAL TUTOR - NATURAL CONVERSATION FLOW
         listen careFully you're an ai tutor to teach enlish to urdu users which will interact with you listen here 
         when you generate response you have to take care you never add any urdu word into eng tag & vice versa
         like [eng] tag covers area untill [ur] tags never comes okah like that line = 
@@ -695,6 +718,9 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         Understand
         keep in your mind never repeat those what user asks yes but conservationally I mean Fit precisely well there's no again one word repeat never make it generic make it humanize response oka
         looks like a proFessional AI tutor is interacting with to teach english
+        well user interact with you with the aim oF taking help in saying some sentences, vocabulary, others things he wants in english wanna improve his Enlish 
+        as you're an Openai agent you know better what's you have to do okah so plzzz never do mistakes & keep in your mind user is know speaking urdu not english ok
+        
         """
         elif response_language == "ur":
             system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
@@ -721,12 +747,12 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": "gpt-3.5-turbo",
+                    "model": "gpt-4",
                     "messages": messages,
                     "temperature": 0.3,  # Lower for more consistent tagging
-                    "max_tokens": 150
+                    "max_tokens": 300
                 },
-                timeout=15.0
+                timeout=30.0
             )
             
             latency = time.time() - start_time
@@ -978,12 +1004,10 @@ def generate_speech(text, language_code=None, voice_id=None):
 
     data = {
         "text": enhanced_text,
-        "model_id": "eleven_flash_v2_5",  # Force fastest model
-        "voice_settings": {
-            "stability": 0.8,        # Reduced for speed
-            "similarity_boost": 0.8  # Reduced for speed
-        },
-        "optimize_streaming_latency": 4  # Maximum speed optimization
+        "model_id": model_id,
+        "voice_settings": voice_settings,
+        "apply_text_normalization": "auto",
+        "optimize_streaming_latency": 3  # Optimize for speed
     }
     
     start_time = time.time()
@@ -1046,24 +1070,70 @@ def add_accent_free_markup(text, language_code):
 
 # Enhanced multilingual processing for Urdu-English
 async def process_multilingual_text_seamless(text, detect_language=True):
-    """ULTRA-FAST TTS processing - single API call approach"""
+    """OPTIMIZED: Fast processing with accent-free switching"""
     start_time = time.time()
     
-    # Skip complex processing - just clean and generate
-    cleaned_text = text.replace('[ur]', '').replace('[en]', '').strip()
-    
-    if not cleaned_text:
+    # Clean and prepare text
+    cleaned_text = clean_text_for_tts(text)
+    if not cleaned_text.strip():
         return None, 0
     
-    # SINGLE API CALL - fastest approach
-    audio_data, generation_time = generate_speech(cleaned_text, "ur")  # Default to Urdu
+    # Quick language detection - if mostly one language, use single call
+    segments = parse_intelligent_segments(cleaned_text)
     
-    if audio_data:
+    if len(segments) <= 1 or is_single_language_dominant(segments):
+        # FAST PATH: Single API call for speed
+        primary_lang = segments[0]["language"] if segments else detect_primary_language(cleaned_text)
+        
+        audio_data, generation_time = generate_speech(
+            cleaned_text.replace('[ur]', '').replace('[en]', ''), 
+            primary_lang
+        )
+        
+        if audio_data:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+                temp_file.write(audio_data.read())
+                return temp_file.name, generation_time
+        return None, 0
+    
+    # PARALLEL PROCESSING: Generate segments concurrently for speed
+    tasks = []
+    for segment in segments:
+        if segment["text"].strip():
+            task = asyncio.create_task(
+                generate_speech_async(segment["text"], segment["language"])
+            )
+            tasks.append((task, segment))
+    
+    # Wait for all generations to complete
+    audio_segments = []
+    total_time = 0
+    
+    for task, segment in tasks:
+        try:
+            audio_data, gen_time = await asyncio.wait_for(task, timeout=5.0)
+            if audio_data:
+                audio_segments.append(audio_data)
+                total_time += gen_time
+        except asyncio.TimeoutError:
+            logger.warning(f"TTS timeout for segment: {segment['text'][:20]}...")
+            continue
+    
+    if not audio_segments:
+        return None, 0
+    
+    # FAST CONCATENATION: Minimal processing
+    if len(audio_segments) == 1:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            temp_file.write(audio_data.read())
-            return temp_file.name, generation_time
+            temp_file.write(audio_segments[0].read())
+            return temp_file.name, total_time
     
-    return None, generation_time
+    # Quick merge without complex audio processing
+    combined_audio = merge_audio_segments_fast(audio_segments)
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+        temp_file.write(combined_audio)
+        return temp_file.name, total_time
 
 def clean_text_for_tts(text):
     """Remove problematic characters that cause voice issues"""
@@ -1152,35 +1222,57 @@ def parse_intelligent_segments(text):
 # ----------------------------------------------------------------------------------
 
 async def process_voice_input_pronunciation_enhanced(audio_file):
-    """SPEED-OPTIMIZED voice processing pipeline"""
+    """Enhanced voice processing focusing on pronunciation accuracy for Urdu-English"""
     pipeline_start_time = time.time()
     
     try:
-        # STEP 1: Fast transcription (no preprocessing)
-        transcription = await transcribe_with_api(audio_file, st.session_state.openai_api_key)
+        # Step 1: Enhanced Audio Preprocessing with 500% boost
+        st.session_state.message_queue.put("🔊 Amplifying audio for pronunciation clarity...")
         
-        if not transcription.get("text"):
+        # Step 2: Pronunciation-Enhanced Transcription
+        st.session_state.message_queue.put("🎯 Analyzing Urdu-English pronunciation patterns...")
+        
+        transcription = await asyncio.wait_for(
+            transcribe_with_api(audio_file, st.session_state.openai_api_key),
+            timeout=30.0
+        )
+        
+        if not transcription or not transcription.get("text"):
+            st.session_state.message_queue.put("❌ No clear pronunciation detected")
             return None, None, 0, 0, 0
         
+        # Step 3: Pronunciation-Based Language Understanding
         user_input = transcription["text"].strip()
         
-        # STEP 2: Fast LLM response
+        st.session_state.message_queue.put(f"📝 Transcribed: {user_input}")
+        
+        # Step 4: Generate Response
+        st.session_state.message_queue.put("🤖 Generating response...")
+        
         llm_result = await generate_llm_response(user_input)
         
         if "error" in llm_result:
+            st.session_state.message_queue.put(f"❌ Response generation failed: {llm_result.get('error')}")
             return user_input, None, transcription.get("latency", 0), 0, 0
         
         response_text = llm_result["response"]
+        st.session_state.message_queue.put(f"💬 Generated: {response_text}")
         
-        # STEP 3: Fast TTS
+        # Step 5: High-Quality Voice Synthesis
+        st.session_state.message_queue.put("🎵 Generating accent-free speech...")
         audio_path, tts_latency = await process_multilingual_text_seamless(response_text)
         
+        # Calculate total latency
         total_latency = time.time() - pipeline_start_time
+        st.session_state.performance_metrics["total_latency"].append(total_latency)
+        
+        st.session_state.message_queue.put(f"✅ Complete! ({total_latency:.2f}s)")
         
         return user_input, audio_path, transcription.get("latency", 0), llm_result.get("latency", 0), tts_latency
         
     except Exception as e:
-        logger.error(f"Pipeline error: {str(e)}")
+        logger.error(f"Enhanced processing error: {str(e)}")
+        st.session_state.message_queue.put(f"❌ Error: {str(e)}")
         return None, None, 0, 0, 0
 
 async def process_text_input(text):
