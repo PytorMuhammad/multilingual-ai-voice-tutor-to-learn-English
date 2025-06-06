@@ -49,12 +49,10 @@ if 'api_keys_initialized' not in st.session_state:
     st.session_state.api_keys_initialized = False
     st.session_state.elevenlabs_api_key = os.environ.get("ELEVENLABS_API_KEY", "")
     st.session_state.openai_api_key = os.environ.get("OPENAI_API_KEY", "")
-    st.session_state.coqui_api_key = os.environ.get("COQUI_API_KEY", "")
 
 # API endpoints
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
 OPENAI_API_URL = "https://api.openai.com/v1"
-COQUI_API_URL = "https://app.coqui.ai/api/v1"
 
 if 'language_voices' not in st.session_state:
     # USE SAME VOICE FOR ALL LANGUAGES - No accent bleeding
@@ -88,7 +86,7 @@ if 'voice_settings' not in st.session_state:
         }
     }
 
-# TTS Provider Configuration - UPDATED WITH COQUI
+# TTS Provider Configuration
 if 'tts_provider' not in st.session_state:
     st.session_state.tts_provider = "elevenlabs"  # Default
 
@@ -163,35 +161,6 @@ if 'provider_voice_configs' not in st.session_state:
                 }
             },
             "selected": "Nova"
-        },
-        "coqui": {
-            "speakers": {
-                "Multilingual_Sarah": {
-                    "voice_id": "multilingual-sarah-v1",
-                    "description": "Professional multilingual voice - Urdu/English optimized",
-                    "model": "xtts-v2",
-                    "languages": ["en", "ur", "hi"]
-                },
-                "Global_Alex": {
-                    "voice_id": "global-alex-v1", 
-                    "description": "Clear male voice - excellent for language learning",
-                    "model": "xtts-v2",
-                    "languages": ["en", "ur"]
-                },
-                "Teacher_Maria": {
-                    "voice_id": "teacher-maria-v1",
-                    "description": "Educational voice - perfect for tutoring",
-                    "model": "xtts-v2",
-                    "languages": ["en", "ur", "es"]
-                },
-                "Native_Asim": {
-                    "voice_id": "native-asim-v1",
-                    "description": "Native-like pronunciation - Urdu specialist", 
-                    "model": "xtts-v2",
-                    "languages": ["ur", "en"]
-                }
-            },
-            "selected": "Multilingual_Sarah"
         }
     }
 
@@ -199,8 +168,7 @@ if 'provider_voice_configs' not in st.session_state:
 if 'selected_speakers' not in st.session_state:
     st.session_state.selected_speakers = {
         "elevenlabs": "Rachel",
-        "openai": "Nova", 
-        "coqui": "Multilingual_Sarah"
+        "openai": "Nova"
     }
 
 # Dynamic voice ID based on selected provider and speaker
@@ -244,7 +212,7 @@ if 'performance_metrics' not in st.session_state:
         "llm_latency": [],
         "tts_latency": [],
         "total_latency": [],
-        "api_calls": {"whisper": 0, "openai": 0, "elevenlabs": 0, "coqui": 0}
+        "api_calls": {"whisper": 0, "openai": 0, "elevenlabs": 0}
     }
 
 # Conversation history
@@ -770,204 +738,66 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         response_language = st.session_state.response_language
         
         if response_language == "both":
-            system_content = """🎓 ENGLISHMASTER PROFESSIONAL LANGUAGE INSTRUCTION SYSTEM 
+            system_content = """🎓 PROFESSIONAL ENGLISH TUTORING SYSTEM
 
-            ═══════════════════════════════════════════════════════════════════
+            You are Dr. EnglishMaster, a certified English instructor for Urdu speakers.
 
-            🏆 INSTRUCTOR PROFILE & CREDENTIALS
-            You are Dr. EnglishMaster, a premium certified English language instructor with:
-            - 15+ years specialized experience: Urdu → English language acquisition
-            - M.A. Applied Linguistics, University of Cambridge  
-            - Certified IELTS/TOEFL examiner (A1-C2 levels)
-            - Published researcher in Urdu-English phonetic interference
-            - 98% student satisfaction rate, 2000+ successful graduates
-            - Specialization: Accent elimination and pronunciation perfection
+            🎯 CORE TEACHING RESPONSIBILITIES:
+            - Grammar instruction and explanations
+            - Vocabulary building with context
+            - Pronunciation guidance
+            - Cultural context of English usage
+            - Error correction with explanations
+            - Conversation practice scenarios
+            - Writing and speaking skill development
 
-            ═══════════════════════════════════════════════════════════════════
+            🚨 CRITICAL TAGGING PROTOCOL (ZERO TOLERANCE):
 
-            🚨 MISSION-CRITICAL TECHNICAL REQUIREMENTS (ZERO TOLERANCE)
+            RULE 1: PERFECT LANGUAGE BOUNDARY ISOLATION
+            ✅ CORRECT: "[ur] English mein [en] water [ur] ko [en] water [ur] kehte hain"
+            ❌ WRONG: "[en] Water means paani in Urdu"
 
-            ⚠️ TAGGING PROTOCOL ALPHA-7 (MANDATORY COMPLIANCE)
-            Every response MUST pass these technical specifications:
+            RULE 2: INDIVIDUAL WORD TAGGING FOR VOCABULARY
+            ✅ CORRECT: "[ur] Basic words: [en] house [ur] (ghar), [en] car [ur] (gaari), [en] book [ur] (kitab)"
+            ❌ WRONG: "[en] Basic words: house, car, book [ur] ye sab Urdu mein..."
 
-            SPECIFICATION 1: ABSOLUTE LANGUAGE ISOLATION
-            ❌ VIOLATION: "[en] Hello - Assalam"              ← ACCENT BLEEDING
-            ❌ VIOLATION: "[en] Thank you - Shukriya"         ← ACCENT BLEEDING  
-            ❌ VIOLATION: "[ur] Hum kehte hain Water"         ← ACCENT BLEEDING
-            ✅ COMPLIANT: "[en] Hello [ur] - assalam alaikum" ← PERFECT ISOLATION
-            ✅ COMPLIANT: "[en] Thank you [ur] - shukriya"    ← PERFECT ISOLATION
-            ✅ COMPLIANT: "[ur] Hum kehte hain [en] Water"    ← PERFECT ISOLATION
+            RULE 3: ENGLISH EXPLANATIONS WHEN PEDAGOGICALLY NECESSARY
+            ✅ CORRECT: "[ur] Present tense ka structure hai: [en] Subject + Verb + Object [ur]. Misal: [en] I eat food [ur] yani [en] I [ur] (main), [en] eat [ur] (khata hun), [en] food [ur] (khana)"
 
-            SPECIFICATION 2: ZERO UNTAGGED CONTENT TOLERANCE
-            ❌ VIOLATION: "Umeed hai madad milegi!"           ← UNTAGGED CONTENT
-            ❌ VIOLATION: "[ur] Lafz Water ka matlab"         ← MIXED TAGGING
-            ✅ COMPLIANT: "[ur] Umeed hai madad milegi!"      ← FULLY TAGGED
-            ✅ COMPLIANT: "[ur] Lafz [en] Water [ur] ka matlab" ← PRECISE TAGGING
+            RULE 4: GRAMMAR EXPLANATIONS WITH MIXED TAGGING
+            ✅ CORRECT: "[ur] Past tense banane ke liye [en] verb [ur] ke saath [en] -ed [ur] lagaate hain. [en] Walk [ur] se [en] walked [ur] banta hai"
 
-            SPECIFICATION 3: VOCABULARY ENUMERATION PROTOCOL
-            ❌ CRITICAL FAILURE:
-            "[en] 1. Hello - Assalam
-            2. Thank you - Shukriya
-            3. Please - Meherbani"
+            🎓 PROFESSIONAL TEACHING TEMPLATES:
 
-            ✅ TECHNICAL COMPLIANCE:
-            "[ur] 1. [en] Hello [ur] - assalam alaikum
-            [ur] 2. [en] Thank you [ur] - shukriya  
-            [ur] 3. [en] Please [ur] - meherbani"
+            VOCABULARY INSTRUCTION:
+            "[ur] Bahut acha sawal! [en] {ENGLISH_WORD} [ur] ka matlab {URDU_MEANING} hai. Iska istemal: [en] {EXAMPLE_SENTENCE} [ur]. Samjhe?"
 
-            SPECIFICATION 4: TRANSLATION BOUNDARY ENFORCEMENT
-            ❌ VIOLATION: "[en] Water - paani"
-            ❌ VIOLATION: "[ur] Assalam alaikum - Hello"
-            ✅ COMPLIANT: "[en] Water [ur] - paani"
-            ✅ COMPLIANT: "[ur] Assalam alaikum - [en] Hello"
+            GRAMMAR EXPLANATION:
+            "[ur] {GRAMMAR_CONCEPT} ka rule ye hai: [en] {ENGLISH_RULE} [ur]. Misal dekhen: [en] {EXAMPLE} [ur]. Aap try kariye!"
 
-            ═══════════════════════════════════════════════════════════════════
+            ERROR CORRECTION:
+            "[ur] Bilkul qareeb! Lekin [en] {INCORRECT_FORM} [ur] ki jagah [en] {CORRECT_FORM} [ur] use kariye. Wajah: {REASON}. Sahi sentence: [en] {CORRECTED_SENTENCE} [ur]"
 
-            📚 ADVANCED PEDAGOGICAL FRAMEWORK
+            CONVERSATION PRACTICE:
+            "[ur] Is situation mein aap keh sakte hain: [en] {ENGLISH_PHRASE} [ur]. Pronunciation: {PHONETIC}. Iska matlab: {MEANING}. Practice kariye!"
 
-            🎯 CURRICULUM ARCHITECTURE (CEFR-ALIGNED)
-            ├── A1 FOUNDATION MODULE
-            │   ├── Phonetic System Integration (English → Urdu mapping)
-            │   ├── Core Lexicon: be/have conjugation mastery
-            │   ├── Article System: a/an/the with mnemonic techniques
-            │   ├── Survival Vocabulary: 200 high-frequency lexemes
-            │   └── Basic Syntax: SOV → SVO transformation patterns
-            │
-            └── A2 INTERMEDIATE MODULE
-                ├── Temporal System: Present/Past/Future tense mastery
-                ├── Modal Verb Complex: can/must/should/would
-                ├── Question Formation: Wh-questions and yes/no queries
-                ├── Preposition Mastery: spatial/temporal relationships
-                └── Phrasal Verb Mechanics: common combinations
+            🔧 ADVANCED PEDAGOGICAL FEATURES:
+            - Use Urdu for complex explanations
+            - Use English for examples and practice
+            - Provide cultural context
+            - Give pronunciation tips
+            - Offer practice exercises
+            - Build progressive difficulty
+            - Encourage natural usage
 
-            🧠 COGNITIVE LEARNING STRATEGIES
-            1. MICROLEARNING PROTOCOL: 2-3 sentence maximum responses
-            2. SCAFFOLDED PROGRESSION: Known → Unknown concept bridging
-            3. CONTEXTUALIZED ACQUISITION: Real-world scenario integration
-            4. METACOGNITIVE AWARENESS: Pattern recognition development
-            5. SPACED REPETITION: Strategic concept reinforcement
-            6. ERROR ANTICIPATION: Urdu L1 interference prediction
+            🎯 QUALITY ASSURANCE:
+            ✓ Every English word individually tagged
+            ✓ Urdu explanations for clarity  
+            ✓ No accent bleeding between languages
+            ✓ Professional teaching methodology
+            ✓ Student engagement and encouragement
 
-            🎭 ENGAGEMENT METHODOLOGY
-            ├── SOCRATIC QUESTIONING: Student discovery facilitation
-            ├── TASK-BASED LEARNING: Practical application focus
-            ├── CULTURAL INTEGRATION: English-speaking world context
-            ├── CONFIDENCE BUILDING: Positive reinforcement protocols
-            └── AUTONOMY DEVELOPMENT: Self-correction skill building
-
-            ═══════════════════════════════════════════════════════════════════
-
-            💎 PROFESSIONAL RESPONSE TEMPLATES
-
-            🗣️ VOCABULARY INSTRUCTION TEMPLATE:
-            "[ur] Bahut acha sawal! Angrezi mein [en] {ENGLISH_WORD} [ur] ka matlab hai {URDU_MEANING}. Note: {GRAMMATICAL_INFO}. Misal: [en] {EXAMPLE_SENTENCE} [ur]. Aap try kariye: {PRACTICE_TASK}?"
-
-            🔧 GRAMMAR CORRECTION TEMPLATE:
-            "[ur] Bilkul qareeb! [en] {INCORRECT_FORM} [ur] ki jagah [en] {CORRECT_FORM} [ur] istemal kariye, kyunki {GRAMMATICAL_REASON}. Sahi tariqa: [en] {CORRECTED_SENTENCE} [ur]. Samjh gaye?"
-
-            📋 VOCABULARY LIST TEMPLATE:
-            "[ur] {CATEGORY_NAME}:
-            [ur] 1. [en] {ENGLISH_1} [ur] - {URDU_1}
-            [ur] 2. [en] {ENGLISH_2} [ur] - {URDU_2}  
-            [ur] 3. [en] {ENGLISH_3} [ur] - {URDU_3}
-            [ur] Kaunsa lafz aap ke liye sabse zaroori hai?"
-
-            🎯 CONVERSATION PRACTICE TEMPLATE:
-            "[ur] Ye scenario sochiyen: {SCENARIO}. Kahiye: [en] {ENGLISH_PHRASE} [ur]. Iska matlab: {EXPLANATION}. Agar koi pooche [en] {FOLLOW_UP_QUESTION} [ur] toh aap kya jawab denge?"
-
-            ═══════════════════════════════════════════════════════════════════
-
-            🔬 QUALITY ASSURANCE PROTOCOL
-
-            PRE-TRANSMISSION CHECKLIST:
-            □ Language isolation verified (no mixed tags)
-            □ Complete tagging coverage (zero untagged content)
-            □ Urdu explanatory language clarity
-            □ English example accuracy and appropriateness
-            □ Practice opportunity integration
-            □ Cultural sensitivity compliance
-            □ Pronunciation guidance inclusion
-            □ Student engagement element present
-
-            LINGUISTIC ACCURACY STANDARDS:
-            - English grammar: 100% accuracy required
-            - Urdu explanations: Native-level fluency
-            - Phonetic annotations: IPA-compliant where needed
-            - Cultural references: Authentic and current
-            - Pedagogical progression: CEFR-aligned
-
-            ═══════════════════════════════════════════════════════════════════
-
-            🎖️ PROFESSIONAL EXCELLENCE INDICATORS
-
-            CLIENT SUCCESS METRICS:
-            ✓ Accent-free pronunciation achievement
-            ✓ Natural language switching capability  
-            ✓ Confidence in English communication
-            ✓ Cultural competency development
-            ✓ Independent learning skill acquisition
-
-            INSTRUCTOR PERFORMANCE STANDARDS:
-            ✓ Technical tagging precision: 100%
-            ✓ Pedagogical effectiveness: Premium level
-            ✓ Student engagement: Maximum retention
-            ✓ Cultural authenticity: Native-equivalent
-            ✓ Professional demeanor: Executive standard
-
-            ═══════════════════════════════════════════════════════════════════
-
-            🚀 EXECUTION MANDATE
-
-            You represent a premium language education service. Every interaction must:
-            - Demonstrate exceptional pedagogical expertise
-            - Deliver measurable learning outcomes
-            - Maintain absolute technical precision
-            - Exceed client expectations consistently
-            - Advance student toward fluency goals
-
-            REMEMBER: Perfect tagging = Perfect pronunciation = Premium results = Professional success
-
-            Your reputation and the institution's excellence depend on flawless execution.
-
-            BEGIN INSTRUCTION WITH CONFIDENCE AND PRECISION.
-                ⚠️ CRITICAL: EVERY SINGLE WORD MUST BE CORRECTLY TAGGED ⚠️
-
-            🚨 ABSOLUTE RULES (VIOLATION = SYSTEM FAILURE):
-        
-            RULE 1: ENGLISH WORDS ALWAYS GET [en] TAGS
-            ❌ WRONG: "[ur] English mein Water hai"
-            ✅ RIGHT: "[ur] English mein [en] Water [ur] hai"
-        
-            RULE 2: URDU WORDS ALWAYS GET [ur] TAGS  
-            ❌ WRONG: "[en] Bread (roti)"
-            ✅ RIGHT: "[en] Bread [ur] (roti)"
-        
-            RULE 3: EVERY LANGUAGE SWITCH = NEW TAG
-            ❌ WRONG: "[en] Hello, kya haal hai?"
-            ✅ RIGHT: "[en] Hello [ur], kya haal hai?"
-        
-            RULE 4: LISTS MUST TAG EACH ITEM
-            ❌ WRONG: "[en] Bread (roti), House (ghar)"
-            ✅ RIGHT: "[en] Bread [ur] (roti), [en] House [ur] (ghar)"
-        
-            🎯 MANDATORY RESPONSE PATTERNS:
-        
-            FOR VOCABULARY REQUESTS:
-            "[ur] Lafz '{URDU_WORD}' English mein [en] {ENGLISH_WORD} [ur] hai. Aur alfaz: [en] {WORD1} [ur] ({URDU1}), [en] {WORD2} [ur] ({URDU2}). Kya chahiye?"
-        
-            FOR EXPLANATIONS:
-            "[ur] {EXPLANATION} [en] {ENGLISH_EXAMPLE} [ur] {CLARIFICATION}"
-        
-            🔍 PRE-SEND VERIFICATION:
-            - Check: Is every English word tagged with [en]?
-            - Check: Is every Urdu word/explanation tagged with [ur]?
-            - Check: Are parenthetical translations tagged correctly?
-            - Check: No untagged content exists?
-        
-            You are a PREMIUM instructor. PERFECT tagging = PERFECT pronunciation = SATISFIED CLIENT.
-        
-            ZERO MISTAKES TOLERATED. BEGIN
-            ═══════════════════════════════════════════════════════════════════"""
+            REMEMBER: You're training future English speakers. Be thorough, encouraging, and maintain perfect linguistic separation for accent-free learning."""
 
         elif response_language == "ur":
             system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
@@ -1012,6 +842,7 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
                 
                 # Clean up tagging intelligently
                 response_text = clean_intelligent_tags(response_text)
+                response_text = validate_and_fix_tagging(response_text)
                 
                 return {
                     "response": response_text,
@@ -1032,6 +863,31 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
             "response": f"Error: {str(e)}",
             "latency": time.time() - start_time
         }
+def validate_and_fix_tagging(response_text):
+    """Enforce word-level tagging - critical fix"""
+    
+    # Check for block-level violations (long untagged sequences)
+    if re.search(r'\[ur\][^[]{50,}', response_text) or re.search(r'\[en\][^[]{50,}', response_text):
+        logger.warning("Block-level tagging detected - fixing...")
+        
+        # Force word-level mixing for vocabulary responses
+        if any(word in response_text.lower() for word in ["english mein", "kehte hain", "matlab"]):
+            # Apply aggressive word-level tagging
+            response_text = apply_word_level_tagging(response_text)
+    
+    return response_text
+
+def apply_word_level_tagging(text):
+    """Force word-level tagging for critical responses"""
+    # Pattern: "English mein X kehte hain" -> "English mein [en] X [ur] kehte hain"
+    text = re.sub(r'(\[ur\].*?)English mein["\s]*([A-Za-z]+)["\s]*(.*?kehte hain)', 
+                  r'\1English mein [en] \2 [ur] \3', text)
+    
+    # Pattern: Lists with translations
+    text = re.sub(r'(\[ur\].*?)-\s*([A-Za-z]+)\s*\(([^)]+)\)', 
+                  r'\1- [en] \2 [ur] (\3)', text)
+    
+    return text
 
 def clean_intelligent_tags(response_text):
     """Clean up intelligent language tags for Urdu-English"""
@@ -1100,7 +956,7 @@ def detect_primary_language(text):
         return "en"
 
 # ----------------------------------------------------------------------------------
-# TEXT-TO-SPEECH (TTS) SECTION - UPDATED WITH COQUI XTTS
+# TEXT-TO-SPEECH (TTS) SECTION
 # ----------------------------------------------------------------------------------
 
 def get_voices():
@@ -1245,62 +1101,6 @@ async def generate_speech_openai(text, language_code=None):
         logger.error(f"OpenAI TTS error: {str(e)}")
         return None, time.time() - start_time
 
-async def generate_speech_coqui(text, language_code=None):
-    """Generate speech using Coqui XTTS with selected speaker"""
-    api_key = st.session_state.coqui_api_key
-    if not api_key:
-        st.warning("Coqui API key not set. Please configure in sidebar.")
-        return None, 0
-    
-    # Get selected speaker configuration
-    selected_speaker_name = st.session_state.selected_speakers.get("coqui", "Multilingual_Sarah")
-    speaker_config = st.session_state.provider_voice_configs["coqui"]["speakers"][selected_speaker_name]
-    
-    # Clean text (remove language markers)
-    clean_text = re.sub(r'\[ur\]|\[en\]', '', text).strip()
-    
-    # Determine language for Coqui
-    coqui_language = "en"  # Default
-    if language_code == "ur":
-        coqui_language = "ur"
-    elif language_code == "en":
-        coqui_language = "en"
-    
-    start_time = time.time()
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{COQUI_API_URL}/synthesize",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "voice_id": speaker_config["voice_id"],
-                    "text": clean_text,
-                    "language": coqui_language,
-                    "model": speaker_config["model"],
-                    "speed": 1.0,
-                    "emotion": "neutral"
-                },
-                timeout=30.0
-            )
-            
-            generation_time = time.time() - start_time
-            
-            if response.status_code == 200:
-                logger.info(f"✅ Coqui XTTS ({selected_speaker_name}) generated in {generation_time:.2f}s")
-                st.session_state.performance_metrics["api_calls"]["coqui"] += 1
-                return BytesIO(response.content), generation_time
-            else:
-                logger.error(f"Coqui TTS error: {response.status_code}")
-                return None, generation_time
-                
-    except Exception as e:
-        logger.error(f"Coqui TTS error: {str(e)}")
-        return None, time.time() - start_time
-
 async def generate_speech_unified(text, language_code=None):
     """Unified speech generation using selected provider"""
     provider = st.session_state.tts_provider
@@ -1309,8 +1109,6 @@ async def generate_speech_unified(text, language_code=None):
         return generate_speech(text, language_code)
     elif provider == "openai":
         return await generate_speech_openai(text, language_code)
-    elif provider == "coqui":
-        return await generate_speech_coqui(text, language_code)
     else:
         return generate_speech(text, language_code)  # Fallback
 
@@ -1649,17 +1447,9 @@ def main():
             help="Required for speech recognition and language understanding"
         )
         
-        coqui_key = st.text_input(
-            "Coqui API Key", 
-            value=st.session_state.coqui_api_key,
-            type="password",
-            help="Required for Coqui XTTS (optional)"
-        )
-        
         if st.button("Save API Keys"):
             st.session_state.elevenlabs_api_key = elevenlabs_key
             st.session_state.openai_api_key = openai_key
-            st.session_state.coqui_api_key = coqui_key
             st.session_state.api_keys_initialized = True
             ensure_single_voice_consistency()
             st.success("API keys saved successfully!")
@@ -1752,18 +1542,17 @@ def main():
             st.session_state.whisper_local_model = None
             st.success(f"Changed Whisper model to {whisper_model}")
         
-        # TTS Provider Selection - UPDATED WITH COQUI
+        # TTS Provider Selection
         st.subheader("🎵 TTS Provider")
         
         tts_provider = st.selectbox(
             "Choose TTS Provider",
-            options=["elevenlabs", "openai", "coqui"],
+            options=["elevenlabs", "openai"],
             format_func=lambda x: {
                 "elevenlabs": "ElevenLabs (Flash v2.5)",
-                "openai": "OpenAI TTS",
-                "coqui": "Coqui XTTS"
+                "openai": "OpenAI TTS"
             }[x],
-            index=["elevenlabs", "openai", "coqui"].index(st.session_state.tts_provider) if st.session_state.tts_provider in ["elevenlabs", "openai", "coqui"] else 0
+            index=["elevenlabs", "openai"].index(st.session_state.tts_provider) if st.session_state.tts_provider in ["elevenlabs", "openai"] else 0
         )
         
         if tts_provider != st.session_state.tts_provider:
@@ -1771,14 +1560,7 @@ def main():
             st.success(f"TTS Provider changed to: {tts_provider}")
         
         # Provider-specific configuration
-        if tts_provider == "coqui":
-            st.write("**Coqui XTTS Configuration:**")
-            if not st.session_state.coqui_api_key:
-                st.warning("⚠️ Coqui API Key required for Coqui XTTS")
-            else:
-                st.info("✅ Coqui XTTS configured for multilingual support")
-            
-        elif tts_provider == "openai":
+        if tts_provider == "openai":
             st.info("✅ OpenAI TTS uses your existing OpenAI API key")
         
         elif tts_provider == "elevenlabs":
@@ -1840,10 +1622,7 @@ def main():
                         if tts_provider == "elevenlabs":
                             audio_data, latency = generate_speech(test_text)
                         elif tts_provider == "openai":
-                            audio_data, latency = asyncio.run(generate_speech_openai(test_text))
-                        elif tts_provider == "coqui":
-                            audio_data, latency = asyncio.run(generate_speech_coqui(test_text))
-                        
+                            audio_data, latency = asyncio.run(generate_speech_openai(test_text))                        
                         if audio_data:
                             st.audio(audio_data.read(), format="audio/mp3")
                             st.success(f"✅ Test completed in {latency:.2f}s")
@@ -1871,7 +1650,6 @@ def main():
         st.text(f"Whisper API calls: {st.session_state.performance_metrics['api_calls']['whisper']}")
         st.text(f"OpenAI API calls: {st.session_state.performance_metrics['api_calls']['openai']}")
         st.text(f"ElevenLabs API calls: {st.session_state.performance_metrics['api_calls']['elevenlabs']}")
-        st.text(f"Coqui API calls: {st.session_state.performance_metrics['api_calls']['coqui']}")
         
         # Accent improvement explanation
         st.header("Accent Improvement")
