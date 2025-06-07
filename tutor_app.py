@@ -410,7 +410,7 @@ def amplify_recorded_audio(audio_path):
         return audio_path
 
 # ----------------------------------------------------------------------------------
-# SPEECH RECOGNITION (STT) SECTION - UPDATED FOR URDU-ENGLISH
+# SPEECH RECOGNITION (STT) SECTION - UPDATED WITH WORKING STT FROM PASTE.TXT
 # ----------------------------------------------------------------------------------
 
 class AudioRecorder:
@@ -543,34 +543,31 @@ class AudioRecorder:
             
         return combined_audio
 
-async def transcribe_with_api(audio_file, api_key):
-    """Enhanced transcription with pronunciation focus for Urdu/English"""
+# UPDATED STT FUNCTIONS FROM PASTE.TXT
+async def transcribe_with_enhanced_prompts(audio_file):
+    """Enhanced transcription with Urdu/English pronunciation hints"""
     start_time = time.time()
     
     try:
         async with httpx.AsyncClient() as client:
-            # Open file in binary mode
             with open(audio_file, "rb") as f:
                 file_content = f.read()
             
-            # Prepare the multipart form data
             files = {
                 "file": (os.path.basename(audio_file), file_content, "audio/wav")
             }
             
-            # ENHANCED: Pronunciation-focused settings for Urdu/English
             data = {
                 "model": "whisper-1",
-                "response_format": "text",  # FASTER: Simple text response
+                "response_format": "verbose_json",
                 "temperature": "0.0",
                 "language": None,
-                "prompt": "Urdu English mix"  # SHORTER: Faster processing
+                "prompt": "This audio contains Urdu and English speech from a language learning session. Focus on accurate pronunciation. Common Urdu words: main, aap, kya, kaise, English, seekhna. Common English words: hello, water, book, grammar, vocabulary, practice."
             }
             
-            # Send the request with pronunciation-enhanced settings
             response = await client.post(
                 "https://api.openai.com/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {api_key}"},
+                headers={"Authorization": f"Bearer {st.session_state.openai_api_key}"},
                 files=files,
                 data=data,
                 timeout=30.0
@@ -578,27 +575,21 @@ async def transcribe_with_api(audio_file, api_key):
             
             if response.status_code == 200:
                 result = response.json()
-                
-                # ENHANCED: Apply pronunciation-based post-processing
-                enhanced_result = enhance_pronunciation_transcription(result)
-                
-                # Calculate latency and update metrics
+                enhanced_result = enhance_urdu_english_transcription(result)
                 latency = time.time() - start_time
                 st.session_state.performance_metrics["stt_latency"].append(latency)
                 st.session_state.performance_metrics["api_calls"]["whisper"] += 1
-                
+                enhanced_result["latency"] = latency
                 return enhanced_result
             else:
-                logger.error(f"API error: {response.status_code} - {response.text}")
                 return {
                     "text": "",
                     "language": None,
-                    "error": f"API error: {response.status_code} - {response.text}",
+                    "error": f"API error: {response.status_code}",
                     "latency": time.time() - start_time
                 }
     
     except Exception as e:
-        logger.error(f"Enhanced transcription API error: {str(e)}")
         return {
             "text": "",
             "language": None,
@@ -606,80 +597,44 @@ async def transcribe_with_api(audio_file, api_key):
             "latency": time.time() - start_time
         }
 
-def enhance_pronunciation_transcription(result):
-    """Post-process transcription for better pronunciation understanding"""
+def enhance_urdu_english_transcription(result):
+    """Apply Urdu/English specific pronunciation corrections"""
     try:
         text = result.get("text", "")
-        language = result.get("language", "auto")
-        segments = result.get("segments", [])
         
-        # Apply pronunciation-based corrections
-        enhanced_text = apply_pronunciation_corrections(text, language)
-        
-        # Enhance segments with pronunciation markers
-        enhanced_segments = []
-        for segment in segments:
-            enhanced_segment = segment.copy()
-            enhanced_segment["text"] = apply_pronunciation_corrections(
-                segment.get("text", ""), language
-            )
-            enhanced_segments.append(enhanced_segment)
-        
-        return {
-            "text": enhanced_text,
-            "language": language,
-            "segments": enhanced_segments,
-            "latency": result.get("latency", 0),
-            "pronunciation_enhanced": True
+        urdu_corrections = {
+            "mein": "main",
+            "ap": "aap", 
+            "kia": "kya",
+            "kesay": "kaise",
+            "english": "English",
+            "sikhna": "seekhna"
         }
         
-    except Exception as e:
-        logger.error(f"Pronunciation enhancement error: {str(e)}")
-        return result
-
-def apply_pronunciation_corrections(text, language):
-    """Apply pronunciation-based corrections for Urdu/English"""
-    if not text:
-        return text
-    
-    # Urdu pronunciation corrections
-    urdu_corrections = {
-        # Common mispronunciations to correct pronunciations
-        "assalam": "assalam alaikum",
-        "shukria": "shukriya",
-        "mehrbani": "meherbani", 
-        "acha": "acha",
-        "theek": "theek hai",
-        "namaste": "assalam alaikum",  # Convert to proper Urdu greeting
-    }
-    
-    # English pronunciation corrections
-    english_corrections = {
-        "hello": "hello",
-        "thank you": "thank you", 
-        "please": "please",
-        "good": "good",
-        "morning": "morning",
-        "evening": "evening",
-        "how are you": "how are you",
-        "fine": "fine",
-        "okay": "okay"
-    }
-    
-    # Apply corrections based on detected language or overall context
-    corrected_text = text
-    
-    # Apply Urdu corrections if Urdu content detected
-    if language == "ur" or any(word in text.lower() for word in ["assalam", "shukriya", "meherbani"]):
+        english_corrections = {
+            "watar": "water",
+            "buk": "book",
+            "gramar": "grammar",
+            "praktis": "practice",
+            "helo": "hello"
+        }
+        
+        corrected_text = text
+        
         for wrong, correct in urdu_corrections.items():
             corrected_text = re.sub(rf'\b{re.escape(wrong)}\b', correct, corrected_text, flags=re.IGNORECASE)
-    
-    # Apply English corrections if English content detected  
-    if language == "en" or any(word in text.lower() for word in ["hello", "thank", "please"]):
+        
         for wrong, correct in english_corrections.items():
             corrected_text = re.sub(rf'\b{re.escape(wrong)}\b', correct, corrected_text, flags=re.IGNORECASE)
-    
-    return corrected_text
+        
+        result["text"] = corrected_text
+        result["pronunciation_enhanced"] = True
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Transcription enhancement error: {str(e)}")
+        return result
 
 # ----------------------------------------------------------------------------------
 # LANGUAGE MODEL (LLM) SECTION - UPDATED FOR URDU-ENGLISH TUTORING
@@ -718,9 +673,8 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         Understand
         keep in your mind never repeat those what user asks yes but conservationally I mean Fit precisely well there's no again one word repeat never make it generic make it humanize response oka
         looks like a proFessional AI tutor is interacting with to teach english
-        well user interact with you with the aim oF taking help in saying some sentences, vocabulary, others things he wants in english wanna improve his Enlish 
-        as you're an Openai agent you know better what's you have to do okah so plzzz never do mistakes & keep in your mind user is know speaking urdu not english ok
-        
+        never say same meaning line in eng & then urdu ok there must be intelligent sentence switching occurs like
+        [ur] Assalam O Alaikum Toheed! mn aapko btao ga keh apna taroF english mein kse krty hein [eng] I'm Toheed [ur] to iss trha se aap taruF kr skty hein [eng] oka
         """
         elif response_language == "ur":
             system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
@@ -1229,11 +1183,11 @@ async def process_voice_input_pronunciation_enhanced(audio_file):
         # Step 1: Enhanced Audio Preprocessing with 500% boost
         st.session_state.message_queue.put("🔊 Amplifying audio for pronunciation clarity...")
         
-        # Step 2: Pronunciation-Enhanced Transcription
+        # Step 2: Pronunciation-Enhanced Transcription - UPDATED TO USE WORKING STT
         st.session_state.message_queue.put("🎯 Analyzing Urdu-English pronunciation patterns...")
         
         transcription = await asyncio.wait_for(
-            transcribe_with_api(audio_file, st.session_state.openai_api_key),
+            transcribe_with_enhanced_prompts(audio_file),  # UPDATED FUNCTION NAME
             timeout=30.0
         )
         
