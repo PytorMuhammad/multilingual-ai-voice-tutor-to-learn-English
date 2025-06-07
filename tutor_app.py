@@ -63,24 +63,25 @@ if 'language_voices' not in st.session_state:
     }
 
 # OPTIMIZED voice settings for Urdu-English
+# OPTIMIZED voice settings for Urdu-English - ACCENT-FREE
 if 'voice_settings' not in st.session_state:
     st.session_state.voice_settings = {
-        "ur": {  # Urdu-optimized settings
-            "stability": 0.95,        # MAXIMUM stability for consistent Urdu
-            "similarity_boost": 0.98, # MAXIMUM similarity for native Urdu sound
-            "style": 0.85,           # High style for natural Urdu expression
+        "ur": {  # Urdu-optimized settings - MAXIMUM ISOLATION
+            "stability": 0.99,        # MAXIMUM stability to prevent bleeding
+            "similarity_boost": 0.99, # MAXIMUM similarity for pure Urdu sound
+            "style": 0.95,           # HIGH style for natural Urdu expression
             "use_speaker_boost": True # Enable speaker boost for clarity
         },
-        "en": {  # English-optimized settings  
-            "stability": 0.92,        # VERY HIGH stability for consistent English
-            "similarity_boost": 0.95, # VERY HIGH similarity for native English sound
-            "style": 0.80,           # High style for natural English expression
+        "en": {  # English-optimized settings - MAXIMUM ISOLATION  
+            "stability": 0.99,        # MAXIMUM stability to prevent bleeding
+            "similarity_boost": 0.99, # MAXIMUM similarity for pure English sound
+            "style": 0.95,           # HIGH style for natural English expression
             "use_speaker_boost": True # Enable speaker boost for clarity
         },
         "default": {
-            "stability": 0.90,
-            "similarity_boost": 0.90,
-            "style": 0.75,
+            "stability": 0.99,
+            "similarity_boost": 0.99,
+            "style": 0.95,
             "use_speaker_boost": True
         }
     }
@@ -662,20 +663,36 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         response_language = st.session_state.response_language
         
         if response_language == "both":
-            system_content = """ BILINGUAL TUTOR - NATURAL CONVERSATION FLOW
-        listen careFully you're an ai tutor to teach enlish to urdu users which will interact with you listen here 
-        when you generate response you have to take care you never add any urdu word into eng tag & vice versa
-        like [eng] tag covers area untill [ur] tags never comes okah like that line = 
-        [eng] I know how to speak eng [ur] yaqeenan mein jnta ho keh kese english bolty hein
-        Understand
-        dekho [eng] tag covers untill [ur] never comes & check I never add any urdu word within eng tag & vice versa take care oF this too 
-        keep this in your mind you have to help Urdu users to speak english okah so speak urdu as native & english as a learning For interacting user
-        Understand
-        keep in your mind never repeat those what user asks yes but conservationally I mean Fit precisely well there's no again one word repeat never make it generic make it humanize response oka
-        looks like a proFessional AI tutor is interacting with to teach english
-        never say same meaning line in eng & then urdu ok there must be intelligent sentence switching occurs like
-        [ur] Assalam O Alaikum Toheed! mn aapko btao ga keh apna taroF english mein kse krty hein [eng] I'm Toheed [ur] to iss trha se aap taruF kr skty hein [eng] oka
-        """
+            system_content = """You are "TOHEED" - Professional English Language Tutor for Urdu Speakers.
+
+🎯 CRITICAL LANGUAGE STRATEGY:
+- Use [ur] for ALL explanations, instructions, and conversations (Urdu as NATIVE language)
+- Use [en] ONLY for specific English vocabulary/terms being taught
+- NEVER translate same meaning into both languages
+- NEVER repeat same sentence in Urdu then English
+
+✅ CORRECT PATTERN EXAMPLES:
+
+Vocabulary Request: "paani English mein kya kehte hain?"
+Response: [ur] Ji bilkul! "Paani" English mein [en] water [ur] kehte hain. Aur "kitab" ko [en] book [ur] kehte hain.
+
+Grammar Question: "Past tense kaise banate hain?"  
+Response: [ur] Past tense banana bahut asaan hai. Jaise "I eat" ko [en] I ate [ur] kar dete hain. [en] -ed [ur] laga kar past bana dete hain.
+
+❌ WRONG PATTERN (NEVER DO THIS):
+[ur] Paani ko English mein water kehte hain.
+[en] Water is called water in English.
+[ur] Yeh English mein water hota hai.
+
+🎯 YOUR ROLE:
+- Think like native Urdu speaker teaching English vocabulary
+- Use Urdu naturally for explaining concepts
+- Insert English terms strategically for learning
+- Keep responses conversational and helpful
+- Maximum 3-4 sentences per response
+
+REMEMBER: Urdu = explanation/context, English = vocabulary/terms only!"""
+            
         elif response_language == "ur":
             system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
         elif response_language == "en":
@@ -703,8 +720,8 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
                 json={
                     "model": "gpt-4",
                     "messages": messages,
-                    "temperature": 0.3,  # Lower for more consistent tagging
-                    "max_tokens": 300
+                    "temperature": 0.2,  # Lower for more consistent pattern
+                    "max_tokens": 250
                 },
                 timeout=30.0
             )
@@ -719,7 +736,6 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
                 
                 # Clean up tagging intelligently
                 response_text = clean_intelligent_tags(response_text)
-                response_text = validate_and_fix_tagging(response_text)
                 
                 return {
                     "response": response_text,
@@ -954,42 +970,25 @@ def generate_speech(text, language_code=None, voice_id=None):
         return None, 0
 
     # SSML enhancement for pronunciation accuracy
-    enhanced_text = add_accent_free_markup(preprocessed_text, language_code)
-
-    data = {
-        "text": enhanced_text,
-        "model_id": model_id,
-        "voice_settings": voice_settings,
-        "apply_text_normalization": "auto",
-        "optimize_streaming_latency": 3  # Optimize for speed
-    }
-    
-    start_time = time.time()
-    
-    try:
-        response = requests.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{selected_voice_id}",
-            json=data,
-            headers=headers,
-            timeout=10
-        )
+    def add_accent_free_markup(text, language_code):
+        """Add SSML markup for accent-free pronunciation - Urdu/English"""
+        if not language_code:
+            return text
         
-        generation_time = time.time() - start_time
+        # Clean text first
+        clean_text = text.strip()
         
-        if response.status_code == 200:
-            content = response.content
-            if len(content) < 100:
-                return None, generation_time
-                
-            logger.info(f"✅ ElevenLabs ({selected_speaker_name}) generated for {language_code} in {generation_time:.2f}s")
-            return BytesIO(content), generation_time
+        # Add language-specific SSML for MAXIMUM accent isolation
+        if language_code == "ur":
+            # Urdu pronunciation optimization - STRICT ISOLATION
+            enhanced_text = f'<speak><lang xml:lang="ur-PK"><prosody rate="0.85" pitch="+3Hz" volume="+2dB"><emphasis level="moderate">{clean_text}</emphasis></prosody></lang></speak>'
+        elif language_code == "en":
+            # English pronunciation optimization - STRICT ISOLATION
+            enhanced_text = f'<speak><lang xml:lang="en-US"><prosody rate="0.90" pitch="+2Hz" volume="+2dB"><emphasis level="moderate">{clean_text}</emphasis></prosody></lang></speak>'
         else:
-            logger.error(f"TTS API error: {response.status_code} - {response.text}")
-            return None, generation_time
-    
-    except Exception as e:
-        logger.error(f"ElevenLabs TTS error: {str(e)}")
-        return None, time.time() - start_time
+            enhanced_text = clean_text
+        
+        return enhanced_text
 
 
 async def generate_speech_unified(text, language_code=None):
@@ -1219,6 +1218,19 @@ async def process_voice_input_pronunciation_enhanced(audio_file):
         # Calculate total latency
         total_latency = time.time() - pipeline_start_time
         st.session_state.performance_metrics["total_latency"].append(total_latency)
+        
+        # 🔥 FIX: UPDATE CONVERSATION HISTORY FOR UI DISPLAY
+        st.session_state.conversation_history.append({
+            "timestamp": datetime.now().isoformat(),
+            "user_input": user_input,
+            "assistant_response": response_text,
+            "latency": {
+                "stt": transcription.get("latency", 0),
+                "llm": llm_result.get("latency", 0),
+                "tts": tts_latency,
+                "total": total_latency
+            }
+        })
         
         st.session_state.message_queue.put(f"✅ Complete! ({total_latency:.2f}s)")
         
