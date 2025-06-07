@@ -63,25 +63,24 @@ if 'language_voices' not in st.session_state:
     }
 
 # OPTIMIZED voice settings for Urdu-English
-# OPTIMIZED voice settings for Urdu-English - ACCENT-FREE
 if 'voice_settings' not in st.session_state:
     st.session_state.voice_settings = {
-        "ur": {  # Urdu-optimized settings - MAXIMUM ISOLATION
-            "stability": 0.99,        # MAXIMUM stability to prevent bleeding
-            "similarity_boost": 0.99, # MAXIMUM similarity for pure Urdu sound
-            "style": 0.95,           # HIGH style for natural Urdu expression
+        "ur": {  # Urdu-optimized settings
+            "stability": 0.95,        # MAXIMUM stability for consistent Urdu
+            "similarity_boost": 0.98, # MAXIMUM similarity for native Urdu sound
+            "style": 0.85,           # High style for natural Urdu expression
             "use_speaker_boost": True # Enable speaker boost for clarity
         },
-        "en": {  # English-optimized settings - MAXIMUM ISOLATION  
-            "stability": 0.99,        # MAXIMUM stability to prevent bleeding
-            "similarity_boost": 0.99, # MAXIMUM similarity for pure English sound
-            "style": 0.95,           # HIGH style for natural English expression
+        "en": {  # English-optimized settings  
+            "stability": 0.92,        # VERY HIGH stability for consistent English
+            "similarity_boost": 0.95, # VERY HIGH similarity for native English sound
+            "style": 0.80,           # High style for natural English expression
             "use_speaker_boost": True # Enable speaker boost for clarity
         },
         "default": {
-            "stability": 0.99,
-            "similarity_boost": 0.99,
-            "style": 0.95,
+            "stability": 0.90,
+            "similarity_boost": 0.90,
+            "style": 0.75,
             "use_speaker_boost": True
         }
     }
@@ -212,6 +211,44 @@ def check_system_dependencies():
 
 # Audio recording and processing functions
 import streamlit.components.v1 as components
+
+# ADD this new function after line 250
+def create_language_isolated_ssml(text, language_code):
+    """Create SSML with complete language isolation to prevent accent bleeding"""
+    
+    if not language_code:
+        return text
+    
+    clean_text = text.strip()
+    
+    if language_code == "ur":
+        # Complete Urdu isolation with Pakistani accent lock
+        enhanced_text = f'''<speak>
+            <voice name="ur-PK-AsadNeural">
+                <lang xml:lang="ur-PK">
+                    <prosody rate="0.85" pitch="-1st" volume="loud">
+                        <phoneme alphabet="ipa" ph="ʊɾduː">{clean_text}</phoneme>
+                    </prosody>
+                </lang>
+            </voice>
+        </speak>'''
+    elif language_code == "en":
+        # Complete English isolation with American accent lock
+        enhanced_text = f'''<speak>
+            <voice name="en-US-Neural">
+                <lang xml:lang="en-US">
+                    <prosody rate="0.95" pitch="+1st" volume="loud">
+                        <phoneme alphabet="ipa" ph="ɪŋɡlɪʃ">{clean_text}</phoneme>
+                    </prosody>
+                </lang>
+            </voice>
+        </speak>'''
+    else:
+        enhanced_text = clean_text
+    
+    return enhanced_text
+
+# REPLACE the add_accent_free_markup function around line 570
 
 def create_audio_recorder_component():
     """Create HTML5 audio recorder component with WORKING auto-processing"""
@@ -663,36 +700,32 @@ async def generate_llm_response(prompt, system_prompt=None, api_key=None):
         response_language = st.session_state.response_language
         
         if response_language == "both":
-            system_content = """You are "TOHEED" - Professional English Language Tutor for Urdu Speakers.
+            system_content = """You are "UrduMaster" - a professional English language tutor for Urdu speakers.
 
-🎯 CRITICAL LANGUAGE STRATEGY:
-- Use [ur] for ALL explanations, instructions, and conversations (Urdu as NATIVE language)
-- Use [en] ONLY for specific English vocabulary/terms being taught
-- NEVER translate same meaning into both languages
-- NEVER repeat same sentence in Urdu then English
+        CORE IDENTITY: You are a certified English instructor, perfectly bilingual in Urdu and English.
 
-✅ CORRECT PATTERN EXAMPLES:
+        🎯 INTELLIGENT LANGUAGE STRATEGY:
+        - Use [ur] for: explanations, instructions, encouragement, questions, connecting phrases
+        - Use [en] for: vocabulary terms, example sentences, phrases to practice
+        - NEVER repeat the same meaning in both languages
+        - Each language serves a different PURPOSE
 
-Vocabulary Request: "paani English mein kya kehte hain?"
-Response: [ur] Ji bilkul! "Paani" English mein [en] water [ur] kehte hain. Aur "kitab" ko [en] book [ur] kehte hain.
+        PERFECT EXAMPLES:
+        ✅ Vocabulary: "[ur] Urdu mein jo 'paani' hai, usko English mein [en] water [ur] kehte hain."
+        ✅ Grammar: "[ur] Past tense banana hai? Simple rule: [en] I walked, You walked [ur] bas '-ed' lagao."
+        ✅ Practice: "[ur] Restaurant mein order kaise karenge? [en] I would like a coffee, please [ur] ye polite tarika hai."
 
-Grammar Question: "Past tense kaise banate hain?"  
-Response: [ur] Past tense banana bahut asaan hai. Jaise "I eat" ko [en] I ate [ur] kar dete hain. [en] -ed [ur] laga kar past bana dete hain.
+        WRONG EXAMPLES:
+        ❌ "[ur] Pani ko water kehte hain [en] Water means pani [ur] samjhe?"
+        ❌ "[en] Hello means salaam [ur] Hello ka matlab salaam hai"
 
-❌ WRONG PATTERN (NEVER DO THIS):
-[ur] Paani ko English mein water kehte hain.
-[en] Water is called water in English.
-[ur] Yeh English mein water hota hai.
+        RESPONSE RULES:
+        - Keep responses 2-4 sentences for engagement
+        - Always include practice opportunity
+        - Strategic mixing, not random translation
+        - Urdu for WHY/HOW explanations, English for WHAT examples
 
-🎯 YOUR ROLE:
-- Think like native Urdu speaker teaching English vocabulary
-- Use Urdu naturally for explaining concepts
-- Insert English terms strategically for learning
-- Keep responses conversational and helpful
-- Maximum 3-4 sentences per response
-
-REMEMBER: Urdu = explanation/context, English = vocabulary/terms only!"""
-            
+        You're teaching PAID students. Every response must add value and move them toward fluency."""
         elif response_language == "ur":
             system_content = "You are a helpful Urdu assistant. ALWAYS respond ONLY in Urdu with [ur] markers."
         elif response_language == "en":
@@ -720,8 +753,8 @@ REMEMBER: Urdu = explanation/context, English = vocabulary/terms only!"""
                 json={
                     "model": "gpt-4",
                     "messages": messages,
-                    "temperature": 0.2,  # Lower for more consistent pattern
-                    "max_tokens": 250
+                    "temperature": 0.3,  # Lower for more consistent tagging
+                    "max_tokens": 300
                 },
                 timeout=30.0
             )
@@ -736,6 +769,7 @@ REMEMBER: Urdu = explanation/context, English = vocabulary/terms only!"""
                 
                 # Clean up tagging intelligently
                 response_text = clean_intelligent_tags(response_text)
+                response_text = validate_and_fix_tagging(response_text)
                 
                 return {
                     "response": response_text,
@@ -970,25 +1004,42 @@ def generate_speech(text, language_code=None, voice_id=None):
         return None, 0
 
     # SSML enhancement for pronunciation accuracy
-    def add_accent_free_markup(text, language_code):
-        """Add SSML markup for accent-free pronunciation - Urdu/English"""
-        if not language_code:
-            return text
+    enhanced_text = add_accent_free_markup(preprocessed_text, language_code)
+
+    data = {
+        "text": enhanced_text,
+        "model_id": model_id,
+        "voice_settings": voice_settings,
+        "apply_text_normalization": "auto",
+        "optimize_streaming_latency": 3  # Optimize for speed
+    }
+    
+    start_time = time.time()
+    
+    try:
+        response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{selected_voice_id}",
+            json=data,
+            headers=headers,
+            timeout=10
+        )
         
-        # Clean text first
-        clean_text = text.strip()
+        generation_time = time.time() - start_time
         
-        # Add language-specific SSML for MAXIMUM accent isolation
-        if language_code == "ur":
-            # Urdu pronunciation optimization - STRICT ISOLATION
-            enhanced_text = f'<speak><lang xml:lang="ur-PK"><prosody rate="0.85" pitch="+3Hz" volume="+2dB"><emphasis level="moderate">{clean_text}</emphasis></prosody></lang></speak>'
-        elif language_code == "en":
-            # English pronunciation optimization - STRICT ISOLATION
-            enhanced_text = f'<speak><lang xml:lang="en-US"><prosody rate="0.90" pitch="+2Hz" volume="+2dB"><emphasis level="moderate">{clean_text}</emphasis></prosody></lang></speak>'
+        if response.status_code == 200:
+            content = response.content
+            if len(content) < 100:
+                return None, generation_time
+                
+            logger.info(f"✅ ElevenLabs ({selected_speaker_name}) generated for {language_code} in {generation_time:.2f}s")
+            return BytesIO(content), generation_time
         else:
-            enhanced_text = clean_text
-        
-        return enhanced_text
+            logger.error(f"TTS API error: {response.status_code} - {response.text}")
+            return None, generation_time
+    
+    except Exception as e:
+        logger.error(f"ElevenLabs TTS error: {str(e)}")
+        return None, time.time() - start_time
 
 
 async def generate_speech_unified(text, language_code=None):
@@ -1003,23 +1054,8 @@ async def generate_speech_unified(text, language_code=None):
 
 def add_accent_free_markup(text, language_code):
     """Add SSML markup for accent-free pronunciation - Urdu/English"""
-    if not language_code:
-        return text
-    
-    # Clean text first
-    clean_text = text.strip()
-    
-    # Add language-specific SSML for accent-free pronunciation
-    if language_code == "ur":
-        # Urdu pronunciation optimization
-        enhanced_text = f'<speak><lang xml:lang="ur-PK"><prosody rate="0.9">{clean_text}</prosody></lang></speak>'
-    elif language_code == "en":
-        # English pronunciation optimization  
-        enhanced_text = f'<speak><lang xml:lang="en-US"><prosody rate="0.95">{clean_text}</prosody></lang></speak>'
-    else:
-        enhanced_text = clean_text
-    
-    return enhanced_text
+    return create_language_isolated_ssml(text, language_code)
+
 
 # Enhanced multilingual processing for Urdu-English
 async def process_multilingual_text_seamless(text, detect_language=True):
@@ -1174,6 +1210,7 @@ def parse_intelligent_segments(text):
 # END-TO-END PIPELINE - ENHANCED FOR URDU-ENGLISH PROCESSING
 # ----------------------------------------------------------------------------------
 
+# REPLACE the existing function around line 600-650
 async def process_voice_input_pronunciation_enhanced(audio_file):
     """Enhanced voice processing focusing on pronunciation accuracy for Urdu-English"""
     pipeline_start_time = time.time()
@@ -1182,11 +1219,11 @@ async def process_voice_input_pronunciation_enhanced(audio_file):
         # Step 1: Enhanced Audio Preprocessing with 500% boost
         st.session_state.message_queue.put("🔊 Amplifying audio for pronunciation clarity...")
         
-        # Step 2: Pronunciation-Enhanced Transcription - UPDATED TO USE WORKING STT
+        # Step 2: Pronunciation-Enhanced Transcription
         st.session_state.message_queue.put("🎯 Analyzing Urdu-English pronunciation patterns...")
         
         transcription = await asyncio.wait_for(
-            transcribe_with_enhanced_prompts(audio_file),  # UPDATED FUNCTION NAME
+            transcribe_with_enhanced_prompts(audio_file),
             timeout=30.0
         )
         
@@ -1194,9 +1231,7 @@ async def process_voice_input_pronunciation_enhanced(audio_file):
             st.session_state.message_queue.put("❌ No clear pronunciation detected")
             return None, None, 0, 0, 0
         
-        # Step 3: Pronunciation-Based Language Understanding
         user_input = transcription["text"].strip()
-        
         st.session_state.message_queue.put(f"📝 Transcribed: {user_input}")
         
         # Step 4: Generate Response
@@ -1219,7 +1254,7 @@ async def process_voice_input_pronunciation_enhanced(audio_file):
         total_latency = time.time() - pipeline_start_time
         st.session_state.performance_metrics["total_latency"].append(total_latency)
         
-        # 🔥 FIX: UPDATE CONVERSATION HISTORY FOR UI DISPLAY
+        # ✅ FIX: Update conversation history here
         st.session_state.conversation_history.append({
             "timestamp": datetime.now().isoformat(),
             "user_input": user_input,
