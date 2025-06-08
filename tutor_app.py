@@ -341,7 +341,7 @@ def create_audio_recorder_component():
                 const downloadLink = document.getElementById('downloadLink');
                 
                 downloadLink.href = url;
-                downloadLink.download = 'my-recording.webm';
+                downloadLink.download = 'my-recording.mp3';
                 
                 // Show download section
                 document.getElementById('downloadSection').style.display = 'block';
