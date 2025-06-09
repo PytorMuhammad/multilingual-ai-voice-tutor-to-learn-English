@@ -10,7 +10,6 @@
 
 - 🎤 **Multiple TTS Providers**: Choose from **ElevenLabs** 🔥 for top-notch speech synthesis.
 - 🗣️ **Speech Recognition**: Powered by **OpenAI's Whisper** for precise Urdu and English transcription.
-- 🏷️ **Intelligent Language Tagging**: Responses are neatly tagged with `[ur]` for Urdu and `[en]` for English.
 - 🔊 **Audio Processing**: Enhances clarity with amplification, noise reduction, and normalization.
 - 🌐 **Interactive Interface**: Built with **Streamlit** for a seamless, web-based experience.
 
