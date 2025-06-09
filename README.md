@@ -19,12 +19,8 @@
 
 Watch the Multilingual AI Voice Tutor in action:
 
-https://github.com/PytorMuhammad/multilingual-ai-voice-tutor-to-learn-English/blob/main/assets/VID-20250608-WA0012.mp4
+[![Watch Demo](https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg)](https://youtube.com/shorts/PxNGeid0vQs?feature=share)
 
-<video width="100%" controls>
-  <source src="./assets/VID-20250608-WA0012.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
 ---
 
