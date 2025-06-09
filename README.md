@@ -15,6 +15,14 @@
 
 ---
 
+## 🎥 Demo Video
+
+Watch the Multilingual AI Voice Tutor in action:
+
+https://github.com/PytorMuhammad/multilingual-ai-voice-tutor-to-learn-English/blob/main/VID-20250608-WA0012.mp4
+
+---
+
 ## 🛠️ **Technologies Used** 🛠️
 
 - 🐍 **Python 3.11**
