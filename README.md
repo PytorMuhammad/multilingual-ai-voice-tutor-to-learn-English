@@ -19,7 +19,7 @@
 
 Watch the Multilingual AI Voice Tutor in action:
 
-https://github.com/PytorMuhammad/multilingual-ai-voice-tutor-to-learn-English/VID-20250608-WA0012.mp4
+https://github.com/PytorMuhammad/multilingual-ai-voice-tutor-to-learn-English/blob/main/assets/VID-20250608-WA0012.mp4
 
 ---
 
