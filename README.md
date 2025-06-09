@@ -2,13 +2,13 @@
 
 # 🎯 **Multilingual AI Voice Tutor** 🎯
 
-**✨ Welcome to the Multilingual AI Voice Tutor!** This cutting-edge application is your personal language coach, designed to help Urdu speakers master English with ease. Leveraging the power of AI, it offers an immersive, accent-free learning experience with support for multiple Text-to-Speech (TTS) providers, including **ElevenLabs**, **OpenAI**, and **Azure**. Whether you're practicing pronunciation or learning new vocabulary, this tutor has got you covered! 🚀
+**✨ Welcome to the Multilingual AI Voice Tutor!** This cutting-edge application is your personal language coach, designed to help Urdu speakers master English with ease. Leveraging the power of AI, it offers an immersive, accent-free learning experience with support for multiple Text-to-Speech (TTS) providers, including **ElevenLabs** (best for accent bleeding). Whether you're practicing pronunciation or learning new vocabulary, this tutor has got you covered! 🚀
 
 ---
 
 ## 🎉 **Key Features** 🎉
 
-- 🎤 **Multiple TTS Providers**: Choose from **ElevenLabs** 🔥, **OpenAI** ⚡, or **Azure** 🏢 for top-notch speech synthesis.
+- 🎤 **Multiple TTS Providers**: Choose from **ElevenLabs** 🔥 for top-notch speech synthesis.
 - 🗣️ **Speech Recognition**: Powered by **OpenAI's Whisper** for precise Urdu and English transcription.
 - 🏷️ **Intelligent Language Tagging**: Responses are neatly tagged with `[ur]` for Urdu and `[en]` for English.
 - 🔊 **Audio Processing**: Enhances clarity with amplification, noise reduction, and normalization.
@@ -21,9 +21,8 @@
 - 🐍 **Python 3.11**
 - 🌟 **Streamlit** for the web interface
 - 🎙️ **Whisper** for speech recognition
-- 🤖 **OpenAI API** for NLP and TTS
+- 🤖 **OpenAI API** for NLP
 - 🔊 **ElevenLabs API** for TTS
-- ☁️ **Azure Cognitive Services** for TTS
 - 🎧 **Audio Processing Libraries**: librosa, pydub, noisereduce, scipy, sounddevice, soundfile
 
 ---
@@ -55,9 +54,8 @@
 
 3. **Set Up API Keys**:
    Configure your API keys in the Streamlit sidebar:
-   - 🔑 **OpenAI** (for Whisper, ChatGPT, TTS)
+   - 🔑 **OpenAI** (for Whisper, ChatGPT)
    - 🔑 **ElevenLabs** (for TTS)
-   - 🔑 **Azure Cognitive Services** (for TTS)
 
 4. **Run the Application**:
    Launch the app with:
@@ -78,11 +76,11 @@
 
 ### 📝 **Text Input**
 1. Select "Text" input in the sidebar.
-2. Enter text with `[ur]` for Urdu and `[en]` for English, or use the demo scenarios.
+2. Enter text with Urdu and English, or use the demo scenarios.
 3. Click "🚀 Process Text" to generate a response and audio. 📄
 
 ### 🔊 **TTS Selection**
-- Choose your preferred TTS provider (**ElevenLabs**, **OpenAI**, **Azure**) in the sidebar and adjust settings for an accent-free experience. 🎵
+- Choose your preferred TTS provider (**ElevenLabs**) in the sidebar and adjust settings for an accent-free experience. 🎵
 
 ---
 
