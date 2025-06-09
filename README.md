@@ -65,9 +65,6 @@
    python -u app.py
    ```
    Access it at `http://localhost:8501`.
-   Or
-   ```bash
-   https://multilingual-ai-voice-tutor-to-learn-english-production.up.railway.app/
    ```
 ---
 
